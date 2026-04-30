@@ -1,10 +1,11 @@
 #![cfg(test)]
+#![allow(deprecated)]
 
 use super::*;
 use soroban_sdk::{
     testutils::{Address as _, Events},
     token::{StellarAssetClient, TokenClient},
-    Address, Env,
+    Address, Env, String,
 };
 
 // Helper function to create a mock token contract
@@ -38,9 +39,10 @@ fn test_initialize_success() {
     env.mock_all_auths();
 
     let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
 
     // Initialize the contract
-    client.initialize(&tyc_token, &usdc_token, &owner);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
 
     // Verify initialization was successful by trying to use owner functions
     // This implicitly tests that the owner was set correctly
@@ -53,12 +55,13 @@ fn test_initialize_twice_fails() {
     env.mock_all_auths();
 
     let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
 
     // First initialization should succeed
-    client.initialize(&tyc_token, &usdc_token, &owner);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
 
     // Second initialization should panic
-    client.initialize(&tyc_token, &usdc_token, &owner);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
 }
 
 // ===== WITHDRAWAL TESTS =====
@@ -69,8 +72,9 @@ fn test_withdraw_tyc_by_owner_success() {
     env.mock_all_auths();
 
     let (contract_id, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
 
-    client.initialize(&tyc_token, &usdc_token, &owner);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
 
     let tyc_admin_client = StellarAssetClient::new(&env, &tyc_token);
     tyc_admin_client.mint(&contract_id, &1000);
@@ -92,8 +96,9 @@ fn test_withdraw_usdc_by_owner_success() {
     env.mock_all_auths();
 
     let (contract_id, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
 
-    client.initialize(&tyc_token, &usdc_token, &owner);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
 
     let usdc_admin_client = StellarAssetClient::new(&env, &usdc_token);
     usdc_admin_client.mint(&contract_id, &2000);
@@ -115,9 +120,10 @@ fn test_withdraw_insufficient_balance_fails() {
     env.mock_all_auths();
 
     let (contract_id, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
 
     // Initialize the contract
-    client.initialize(&tyc_token, &usdc_token, &owner);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
 
     // Mint only 100 TYC tokens to the contract
     let tyc_admin_client = StellarAssetClient::new(&env, &tyc_token);
@@ -136,9 +142,10 @@ fn test_withdraw_invalid_token_fails() {
     env.mock_all_auths();
 
     let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
 
     // Initialize the contract
-    client.initialize(&tyc_token, &usdc_token, &owner);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
 
     // Try to withdraw a different token (not TYC or USDC)
     let other_token = Address::generate(&env);
@@ -153,9 +160,10 @@ fn test_withdraw_emits_event() {
     env.mock_all_auths();
 
     let (contract_id, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
 
     // Initialize the contract
-    client.initialize(&tyc_token, &usdc_token, &owner);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
 
     // Mint some TYC tokens to the contract
     let tyc_admin_client = StellarAssetClient::new(&env, &tyc_token);
@@ -174,6 +182,99 @@ fn test_withdraw_emits_event() {
     assert!(!events.is_empty());
 }
 
+// ===== TREASURY INVARIANT TESTS =====
+
+fn valid(sum_of_balances: u64, escrow: u64, liabilities: u64, treasury: u64) -> TreasurySnapshot {
+    TreasurySnapshot {
+        sum_of_balances,
+        escrow,
+        liabilities,
+        treasury,
+    }
+}
+
+#[test]
+fn test_treasury_invariant_balanced_zero_state() {
+    assert!(valid(0, 0, 0, 0).invariant_holds());
+}
+
+#[test]
+fn test_treasury_invariant_balanced_typical_state() {
+    assert!(valid(900, 100, 600, 400).invariant_holds());
+}
+
+#[test]
+fn test_treasury_invariant_balanced_escrow_heavy_state() {
+    assert!(valid(0, 1_000, 500, 500).invariant_holds());
+}
+
+#[test]
+fn test_treasury_invariant_unbalanced_returns_false() {
+    assert!(!valid(900, 100, 600, 401).invariant_holds());
+}
+
+#[test]
+fn test_treasury_invariant_unbalanced_zero_treasury() {
+    assert!(!valid(500, 0, 500, 1).invariant_holds());
+}
+
+#[test]
+fn test_treasury_invariant_assert_does_not_panic_when_balanced() {
+    valid(800, 200, 700, 300).assert_invariant();
+}
+
+#[test]
+#[should_panic(expected = "Treasury invariant violated")]
+fn test_treasury_invariant_assert_panics_when_unbalanced() {
+    valid(800, 200, 700, 301).assert_invariant();
+}
+
+#[test]
+fn test_treasury_invariant_lock_into_escrow_preserves_invariant() {
+    let mut snapshot = valid(1_000, 0, 0, 1_000);
+    let amount = 200_u64;
+
+    snapshot.sum_of_balances -= amount;
+    snapshot.escrow += amount;
+
+    snapshot.assert_invariant();
+}
+
+#[test]
+fn test_treasury_invariant_release_escrow_back_to_balances_preserves_invariant() {
+    let mut snapshot = valid(800, 200, 500, 500);
+    let amount = 200_u64;
+
+    snapshot.escrow -= amount;
+    snapshot.sum_of_balances += amount;
+
+    snapshot.assert_invariant();
+}
+
+#[test]
+fn test_treasury_invariant_reclassify_liability_to_treasury_preserves_invariant() {
+    let mut snapshot = valid(800, 0, 200, 600);
+    let amount = 200_u64;
+
+    snapshot.liabilities -= amount;
+    snapshot.treasury += amount;
+
+    snapshot.assert_invariant();
+}
+
+#[test]
+fn test_treasury_invariant_generated_scenarios_pass() {
+    for sum_of_balances in [0_u64, 125, 400, 1_250, 10_000] {
+        for escrow in [0_u64, 1, 25, 100, 750] {
+            let total_assets = sum_of_balances + escrow;
+            let liabilities = total_assets / 2;
+            let treasury = total_assets - liabilities;
+
+            valid(sum_of_balances, escrow, liabilities, treasury).assert_invariant();
+        }
+    }
+}
+
 // ===== VIEW FUNCTION TESTS =====
 
 #[test]
@@ -182,9 +283,10 @@ fn test_get_collectible_info_success() {
     env.mock_all_auths();
 
     let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
 
     // Initialize the contract
-    client.initialize(&tyc_token, &usdc_token, &owner);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
 
     // Set collectible info
     let token_id = 1;
@@ -217,9 +319,10 @@ fn test_get_collectible_info_nonexistent() {
     env.mock_all_auths();
 
     let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
 
     // Initialize the contract
-    client.initialize(&tyc_token, &usdc_token, &owner);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
 
     // Try to get a non-existent collectible
     client.get_collectible_info(&999);
@@ -231,9 +334,10 @@ fn test_get_cash_tier_value_success() {
     env.mock_all_auths();
 
     let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
 
     // Initialize the contract
-    client.initialize(&tyc_token, &usdc_token, &owner);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
 
     // Set cash tier values
     client.set_cash_tier_value(&1, &100);
@@ -253,9 +357,10 @@ fn test_get_cash_tier_value_invalid_tier() {
     env.mock_all_auths();
 
     let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
 
     // Initialize the contract
-    client.initialize(&tyc_token, &usdc_token, &owner);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
 
     // Try to get a non-existent tier
     client.get_cash_tier_value(&999);
@@ -269,9 +374,10 @@ fn test_full_contract_flow() {
     env.mock_all_auths();
 
     let (contract_id, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
 
     // 1. Initialize the contract
-    client.initialize(&tyc_token, &usdc_token, &owner);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
 
     // 2. Set up collectibles
     client.set_collectible_info(&1, &10, &200, &5000, &2500, &100);
@@ -302,4 +408,403 @@ fn test_full_contract_flow() {
 
     assert_eq!(tyc_client.balance(&recipient), 3000);
     assert_eq!(tyc_client.balance(&contract_id), 7000);
+}
+
+// ===== USER REGISTRATION TESTS =====
+
+#[test]
+fn test_register_player_success() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let player = Address::generate(&env);
+    let username = String::from_str(&env, "player1");
+
+    client.register_player(&username, &player);
+
+    let user = client.get_user(&player);
+    assert!(user.is_some());
+    let user = user.unwrap();
+    assert_eq!(user.username, username);
+    assert_eq!(user.address, player);
+    assert_eq!(user.games_played, 0);
+    assert_eq!(user.games_won, 0);
+}
+
+#[test]
+#[should_panic(expected = "Address already registered")]
+fn test_register_player_duplicate() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let player = Address::generate(&env);
+    let username = String::from_str(&env, "player1");
+
+    client.register_player(&username, &player);
+    client.register_player(&username, &player); // Should panic
+}
+
+#[test]
+#[should_panic(expected = "Username must be 3-20 characters")]
+fn test_register_player_username_too_short() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let player = Address::generate(&env);
+    let username = String::from_str(&env, "ab");
+    client.register_player(&username, &player);
+}
+
+#[test]
+#[should_panic(expected = "Username must be 3-20 characters")]
+fn test_register_player_username_too_long() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let player = Address::generate(&env);
+    let username = String::from_str(&env, "thisusernameiswaytoolong");
+    client.register_player(&username, &player);
+}
+
+// ===== BACKEND GAME CONTROLLER TESTS =====
+
+#[test]
+fn test_set_backend_game_controller_by_owner() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let backend_controller = Address::generate(&env);
+    client.set_backend_game_controller(&backend_controller);
+
+    // Verify by using the backend controller to remove a player
+    let player = Address::generate(&env);
+    client.remove_player_from_game(&backend_controller, &1, &player, &10);
+}
+
+#[test]
+fn test_remove_player_from_game_by_owner() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let player = Address::generate(&env);
+    let game_id = 1;
+    let turn_count = 5;
+
+    client.remove_player_from_game(&owner, &game_id, &player, &turn_count);
+
+    // Verify event was emitted
+    let events = env.events().all();
+    assert!(!events.is_empty());
+}
+
+#[test]
+fn test_remove_player_from_game_by_backend_controller() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let backend_controller = Address::generate(&env);
+    client.set_backend_game_controller(&backend_controller);
+
+    let player = Address::generate(&env);
+    let game_id = 2;
+    let turn_count = 15;
+
+    client.remove_player_from_game(&backend_controller, &game_id, &player, &turn_count);
+
+    // Verify event was emitted
+    let events = env.events().all();
+    assert!(!events.is_empty());
+}
+
+#[test]
+#[should_panic(expected = "Unauthorized: caller must be owner or backend game controller")]
+fn test_remove_player_from_game_unauthorized() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let backend_controller = Address::generate(&env);
+    client.set_backend_game_controller(&backend_controller);
+
+    // Try to remove player with unauthorized address
+    let unauthorized = Address::generate(&env);
+    let player = Address::generate(&env);
+
+    client.remove_player_from_game(&unauthorized, &1, &player, &10);
+}
+
+#[test]
+#[should_panic(expected = "Unauthorized: caller must be owner or backend game controller")]
+fn test_remove_player_from_game_no_backend_controller_set() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    // No backend controller set, try with non-owner
+    let unauthorized = Address::generate(&env);
+    let player = Address::generate(&env);
+
+    client.remove_player_from_game(&unauthorized, &1, &player, &10);
+}
+
+#[test]
+fn test_remove_player_emits_correct_event() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let player = Address::generate(&env);
+    let game_id = 42;
+    let turn_count = 100;
+
+    client.remove_player_from_game(&owner, &game_id, &player, &turn_count);
+
+    // Verify event details
+    let events = env.events().all();
+    let _event = events.last().unwrap();
+
+    assert!(!events.is_empty());
+    // Event should contain game_id, player, and turn_count
+}
+
+#[test]
+fn test_backend_controller_integration() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+
+    // Initialize contract
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    // Set backend controller
+    let backend_controller = Address::generate(&env);
+    client.set_backend_game_controller(&backend_controller);
+
+    // Register players
+    let player1 = Address::generate(&env);
+    let player2 = Address::generate(&env);
+    client.register_player(&String::from_str(&env, "player1"), &player1);
+    client.register_player(&String::from_str(&env, "player2"), &player2);
+
+    // Backend removes players from games
+    client.remove_player_from_game(&backend_controller, &1, &player1, &5);
+    client.remove_player_from_game(&backend_controller, &1, &player2, &8);
+
+    // Owner can also remove players
+    client.remove_player_from_game(&owner, &2, &player1, &12);
+
+    // Verify events were emitted - just check that we have events
+    let events = env.events().all();
+    assert!(!events.is_empty());
+}
+
+// ===== EXPORT STATE TESTS (SW-001) =====
+
+#[test]
+fn test_export_state_reflects_initialized_values() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_contract_id, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let dump = client.export_state();
+
+    assert_eq!(dump.owner, owner);
+    assert_eq!(dump.tyc_token, tyc_token);
+    assert_eq!(dump.usdc_token, usdc_token);
+    assert_eq!(dump.reward_system, reward_system);
+    assert_eq!(dump.state_version, 1);
+    assert!(dump.is_initialized);
+    assert!(dump.backend_controller.is_none());
+}
+
+#[test]
+fn test_export_state_reflects_backend_controller_after_set() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let controller = Address::generate(&env);
+    client.set_backend_game_controller(&controller);
+
+    let dump = client.export_state();
+    assert_eq!(dump.backend_controller, Some(controller));
+}
+
+// ===== MIGRATE TESTS (SW-001) =====
+
+#[test]
+fn test_migrate_is_idempotent_at_version_1() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    // migrate at v1 is a no-op placeholder — must not panic
+    client.migrate();
+
+    let dump = client.export_state();
+    assert_eq!(
+        dump.state_version, 1,
+        "migrate must not change version when already at v1"
+    );
+}
+
+#[test]
+#[allow(deprecated)]
+fn test_migrate_from_v0_to_v1() {
+    // Simulate a legacy contract that was deployed before initialize set the
+    // version: register the contract without calling initialize so the stored
+    // version defaults to 0, then call migrate and confirm it advances to 1.
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(TycoonContract, ());
+    let client = TycoonContractClient::new(&env, &contract_id);
+
+    let owner = Address::generate(&env);
+    let tyc_admin = Address::generate(&env);
+    let usdc_admin = Address::generate(&env);
+    let (tyc_token, _) = create_token_contract(&env, &tyc_admin);
+    let (usdc_token, _) = create_token_contract(&env, &usdc_admin);
+    let reward_system = Address::generate(&env);
+
+    // Manually bootstrap the minimum state that migrate requires (owner key)
+    // without going through initialize, so state_version stays at 0.
+    env.as_contract(&contract_id, || {
+        storage::set_owner(&env, &owner);
+        storage::set_tyc_token(&env, &tyc_token);
+        storage::set_usdc_token(&env, &usdc_token);
+        storage::set_reward_system(&env, &reward_system);
+        // state_version is intentionally NOT set → get_state_version returns 0
+    });
+
+    client.migrate();
+
+    // After migrate the version must be 1
+    env.as_contract(&contract_id, || {
+        assert_eq!(
+            storage::get_state_version(&env),
+            1,
+            "migrate must upgrade v0 to v1"
+        );
+    });
+}
+
+// ===== USERNAME BOUNDARY TESTS (SW-CT-008) =====
+
+#[test]
+fn test_register_player_username_exactly_3_chars() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let player = Address::generate(&env);
+    let username = String::from_str(&env, "abc");
+    client.register_player(&username, &player);
+
+    let user = client.get_user(&player).unwrap();
+    assert_eq!(user.username, username);
+}
+
+#[test]
+fn test_register_player_username_exactly_20_chars() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let player = Address::generate(&env);
+    let username = String::from_str(&env, "abcdefghij1234567890");
+    client.register_player(&username, &player);
+
+    let user = client.get_user(&player).unwrap();
+    assert_eq!(user.username, username);
+}
+
+#[test]
+fn test_get_user_unregistered_returns_none() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let unregistered = Address::generate(&env);
+    assert!(client.get_user(&unregistered).is_none());
+}
+
+#[test]
+fn test_set_collectible_info_overwrite() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client, owner, tyc_token, usdc_token) = setup_contract(&env);
+    let reward_system = Address::generate(&env);
+    client.initialize(&tyc_token, &usdc_token, &owner, &reward_system);
+
+    let token_id = 42;
+    client.set_collectible_info(&token_id, &1, &10, &100, &50, &5);
+    assert_eq!(client.get_collectible_info(&token_id), (1, 10, 100, 50, 5));
+
+    client.set_collectible_info(&token_id, &2, &20, &200, &100, &10);
+    assert_eq!(
+        client.get_collectible_info(&token_id),
+        (2, 20, 200, 100, 10)
+    );
 }

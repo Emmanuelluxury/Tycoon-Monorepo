@@ -5,3 +5,8 @@ export * from './interfaces/standard-response.interface';
 export * from './services/pagination.service';
 export * from './interceptors/response.interceptor';
 export * from './filters/http-exception.filter';
+export * from './logger/logger.module';
+export * from './logger/logger.service';
+export * from './logger/logger.config';
+export * from './middleware/http-logger.middleware';
+export * from './guards/app-throttler.guard';

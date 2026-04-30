@@ -10,6 +10,13 @@ export default defineConfig({
         environment: 'jsdom',
         setupFiles: './src/test/setup.ts',
         css: true,
+        exclude: ['e2e/**', 'node_modules/**', 'dist/**', '.next/**'],
+        server: {
+            deps: {
+                // Allow msw/node to run in the vitest Node environment
+                inline: ['msw'],
+            },
+        },
     },
     resolve: {
         alias: {

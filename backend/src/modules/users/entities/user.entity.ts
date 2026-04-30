@@ -4,34 +4,97 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  Index,
+  OneToOne,
+  DeleteDateColumn,
 } from 'typeorm';
+import { Role } from '../../auth/enums/role.enum';
+import { UserPreference } from './user-preference.entity';
 
-@Entity('users')
+@Entity({ name: 'users' })
+@Index(['address', 'chain'])
+@Index(['email'])
+@Index(['firstName'])
+@Index(['lastName'])
+@Index(['deleted_at'])
 export class User {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @PrimaryGeneratedColumn()
+  id: number;
 
-  @Column({ unique: true })
+  @Column({ type: 'varchar', length: 255, unique: true })
   email: string;
 
-  @Column()
-  firstName: string;
-
-  @Column()
-  lastName: string;
-
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', length: 255, nullable: true })
   password: string;
 
-  @Column({ default: 'user' })
-  role: string;
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  firstName: string;
 
-  @Column({ default: true })
-  isActive: boolean;
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  lastName: string;
 
-  @CreateDateColumn()
-  createdAt: Date;
+  @Column({ type: 'varchar', length: 20, default: Role.USER })
+  role: Role;
 
-  @UpdateDateColumn()
-  updatedAt: Date;
+  @Column({ type: 'boolean', default: false })
+  is_admin: boolean;
+
+  @Column({ type: 'varchar', length: 100, unique: true, nullable: true })
+  username: string;
+
+  @Column({ type: 'varchar', length: 100, unique: true, nullable: true })
+  address: string;
+
+  @Column({ type: 'varchar', length: 50, default: 'BASE' })
+  chain: string;
+
+  @Column({ type: 'int', default: 0 })
+  games_played: number;
+
+  @Column({ type: 'int', default: 0 })
+  game_won: number;
+
+  @Column({ type: 'int', default: 0 })
+  game_lost: number;
+
+  @Column({
+    type: 'decimal',
+    precision: 20,
+    scale: 8,
+    default: 0,
+  })
+  total_staked: string;
+
+  @Column({
+    type: 'decimal',
+    precision: 20,
+    scale: 8,
+    default: 0,
+  })
+  total_earned: string;
+
+  @Column({
+    type: 'decimal',
+    precision: 20,
+    scale: 8,
+    default: 0,
+  })
+  total_withdrawn: string;
+
+  @Column({ type: 'boolean', default: false })
+  is_suspended: boolean;
+
+  @CreateDateColumn({ name: 'created_at' })
+  created_at: Date;
+
+  @UpdateDateColumn({ name: 'updated_at' })
+  updated_at: Date;
+
+  @DeleteDateColumn({ name: 'deleted_at', nullable: true })
+  deleted_at: Date | null;
+
+  @OneToOne(() => UserPreference, (preference) => preference.user, {
+    cascade: true,
+  })
+  preference: UserPreference;
 }
