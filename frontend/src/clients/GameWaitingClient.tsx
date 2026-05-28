@@ -6,20 +6,25 @@ import { Spinner } from "@/components/ui/spinner";
 
 /**
  * Client wrapper for the game waiting page.
- * Handles mock loading (e.g. "ENTERING LOBBY...") and mock registration check.
- * Always assumes registered for demo. Renders GameWaiting inside main.
+ *
+ * Handles the initial loading phase and a registration check.
+ * Both are mocked for the demo; replace with real auth/API calls when ready.
  */
 export default function GameWaitingClient(): React.JSX.Element {
   const [loading, setLoading] = useState(true);
-  // Mock: assume user is registered for demo
-  const isRegistered = true;
+  // TODO: replace with real auth check (e.g. useSession / wallet connection)
+  const [isRegistered, setIsRegistered] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 2000);
+    // Simulate async registration check
+    const timer = setTimeout(() => {
+      setIsRegistered(true); // mock: always registered
+      setLoading(false);
+    }, 2000);
     return () => clearTimeout(timer);
   }, []);
 
-  if (loading) {
+  if (loading || isRegistered === null) {
     return (
       <main className="w-full min-h-screen flex items-center justify-center bg-[#010F10] overflow-x-hidden">
         <div className="flex flex-col items-center gap-6">
@@ -29,7 +34,7 @@ export default function GameWaitingClient(): React.JSX.Element {
               ENTERING LOBBY...
             </h1>
             <p className="text-[#869298] text-xs font-bold tracking-widest uppercase">
-              {isRegistered ? "Verifying credentials..." : "Checking registration..."}
+              Verifying credentials...
             </p>
           </div>
         </div>
