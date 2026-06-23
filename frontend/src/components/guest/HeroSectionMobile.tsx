@@ -16,11 +16,20 @@ function usePrefersReducedMotion(): boolean {
     if (typeof window === "undefined") return;
 
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (!mq) {
+      return;
+    }
+    
     setReduced(mq.matches);
 
-    const onChange = () => setReduced(mq.matches);
+    const onChange = (event: MediaQueryListEvent): void => {
+      setReduced(event.matches);
+    };
+    
     mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
+    return () => {
+      mq.removeEventListener("change", onChange);
+    };
   }, []);
 
   return reduced;
@@ -66,7 +75,7 @@ export default function HeroSectionMobile({ className }: HeroSectionMobileProps)
   }
 
   return (
-    <section className={`z-0 w-full min-h-[calc(100dvh-87px)] relative overflow-x-hidden py-8 px-4 bg-[#010F10] ${className || ""}`}>
+    <section className={`z-0 w-full min-h-[calc(100dvh-87px)] relative overflow-x-hidden py-8 px-4 bg-[#010F10] ${className ?? ""}`}>
       {/* Simplified background: flat gradient */}
       <div
         className="absolute inset-0 opacity-60"

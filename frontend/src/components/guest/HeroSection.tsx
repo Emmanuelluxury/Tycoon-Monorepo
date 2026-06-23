@@ -7,7 +7,7 @@ import { useHeroTelemetry } from "@/hooks/useHeroTelemetry";
 import { sanitizeError } from "@/lib/errors";
 
 interface HeroSectionProps {
-  className?: string;
+  className?: string | undefined;
 }
 
 interface HeroErrorState {
@@ -22,11 +22,20 @@ function usePrefersReducedMotion(): boolean {
     if (typeof window === "undefined") return;
 
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (!mq) {
+      return;
+    }
+    
     setReduced(mq.matches);
 
-    const onChange = () => setReduced(mq.matches);
+    const onChange = (event: MediaQueryListEvent): void => {
+      setReduced(event.matches);
+    };
+    
     mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
+    return () => {
+      mq.removeEventListener("change", onChange);
+    };
   }, []);
 
   return reduced;
@@ -35,7 +44,7 @@ function usePrefersReducedMotion(): boolean {
 const typeSpeed = 40;
 const subSpeed = 30;
 
-const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
+const HeroSection: React.FC<HeroSectionProps> = ({ className }): React.ReactElement => {
   const router = useRouter();
   const { fire } = useHeroTelemetry();
   const prefersReducedMotion = usePrefersReducedMotion();
@@ -48,14 +57,17 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
 
   // SW-FE-005: Error boundary for navigation failures
   const handleTrackedNavigation = useCallback(
-    (event: "continue_game_click" | "multiplayer_click" | "join_room_click" | "challenge_ai_click", destination: string) => {
+    (event: "continue_game_click" | "multiplayer_click" | "join_room_click" | "challenge_ai_click", destination: string): void => {
       try {
         fire(event);
         router.push(destination);
-      } catch (err) {
+      } catch (err: unknown) {
         const sanitized = sanitizeError(err);
-        if (sanitized) {
-          setError({ hasError: true, message: sanitized.userMessage || "An unexpected error occurred" });
+        if (sanitized !== null) {
+          setError({ 
+            hasError: true, 
+            message: sanitized.userMessage ?? "An unexpected error occurred" 
+          });
         }
       }
     },
@@ -68,7 +80,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
       <section
         aria-label="Hero"
         role="alert"
-        className={`z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 bg-[#010F10] flex items-center justify-center ${className || ""}`}
+        className={`z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 bg-[#010F10] flex items-center justify-center ${className ?? ""}`}
       >
         <div className="text-center px-4">
           <p className="font-orbitron text-[#00F0FF] text-[20px] md:text-[28px] font-[700] mb-4">
@@ -95,7 +107,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
   return (
     <section
       aria-label="Hero"
-      className={`z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 bg-[#010F10] ${className || ""}`}
+      className={`z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 bg-[#010F10] ${className ?? ""}`}
     >
       {/* Background gradient */}
       <div
