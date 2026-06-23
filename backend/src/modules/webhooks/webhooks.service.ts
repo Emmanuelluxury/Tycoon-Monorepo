@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
@@ -184,7 +188,7 @@ export class WebhooksService {
     try {
       // Idempotency check: Use the webhook ID to prevent duplicate processing
       if (!webhookId) {
-        throw new UnauthorizedException('Webhook payload missing ID for idempotency');
+        throw new BadRequestException('Webhook payload missing ID for idempotency');
       }
 
       const idempotencyKey = `webhook:${webhookId}`;

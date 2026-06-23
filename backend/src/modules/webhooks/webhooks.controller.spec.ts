@@ -73,13 +73,13 @@ describe('WebhooksController', () => {
       ).rejects.toThrow(UnauthorizedException);
     });
 
-    it('should throw BadRequestException for processing errors', async () => {
+    it('should propagate service processing errors without masking them', async () => {
       service.verifySignature.mockResolvedValue(true);
       service.processWebhook.mockRejectedValue(new Error('Processing failed'));
 
       await expect(
         controller.handleStripeWebhook('valid_signature', '1234567890', mockReq as any, mockBody as any),
-      ).rejects.toThrow(BadRequestException);
+      ).rejects.toThrow('Processing failed');
     });
   });
 

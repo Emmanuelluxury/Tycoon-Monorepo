@@ -10,7 +10,6 @@ import {
   HttpCode,
   HttpStatus,
   UnauthorizedException,
-  BadRequestException,
 } from '@nestjs/common';
 import { WebhooksService } from './webhooks.service';
 import { WebhooksObservabilityService } from './webhooks-observability.service';
@@ -30,39 +29,33 @@ export class WebhooksController {
   @Post('stripe')
   @HttpCode(HttpStatus.OK)
   async handleStripeWebhook(
-    @Headers('x-stripe-signature') signature: string,
-    @Headers('x-stripe-timestamp') timestamp: string,
+    @Headers('x-stripe-signature') signature: string | undefined,
+    @Headers('x-stripe-timestamp') timestamp: string | undefined,
     @Req() req: Request & { rawBody: Buffer; ip: string },
     @Body() body: StripeWebhookDto,
   ) {
-    try {
-      const ipAddress = req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
-      const userAgent = req.headers['user-agent'] || 'unknown';
+    const ipAddress =
+      req.ip || (req.headers['x-forwarded-for'] as string) || 'unknown';
+    const userAgent = req.headers['user-agent'] || 'unknown';
 
-      const isValid = await this.webhooksService.verifySignature(
-        signature,
-        timestamp,
-        req.rawBody,
-        'stripe',
-        ipAddress,
-      );
+    const isValid = await this.webhooksService.verifySignature(
+      signature,
+      timestamp,
+      req.rawBody,
+      'stripe',
+      ipAddress,
+    );
 
-      if (!isValid) {
-        throw new UnauthorizedException('Invalid webhook signature');
-      }
-
-      return await this.webhooksService.processWebhook(
-        body,
-        'stripe',
-        ipAddress,
-        userAgent,
-      );
-    } catch (error) {
-      if (error instanceof UnauthorizedException) {
-        throw error;
-      }
-      throw new BadRequestException('Invalid webhook payload');
+    if (!isValid) {
+      throw new UnauthorizedException('Invalid webhook signature');
     }
+
+    return await this.webhooksService.processWebhook(
+      body,
+      'stripe',
+      ipAddress,
+      userAgent,
+    );
   }
 
   /**

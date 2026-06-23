@@ -1,4 +1,13 @@
-import { IsString, IsObject, IsNotEmpty } from 'class-validator';
+import {
+  IsBoolean,
+  IsInt,
+  IsNotEmpty,
+  IsNotEmptyObject,
+  IsObject,
+  IsOptional,
+  IsString,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class BaseWebhookDto {
   @IsString()
@@ -10,22 +19,24 @@ export class BaseWebhookDto {
   type: string;
 
   @IsObject()
-  data: any;
+  @IsNotEmptyObject()
+  data: Record<string, unknown>;
 
-  @IsString()
-  @IsNotEmpty()
-  created: string;
+  @Type(() => Number)
+  @IsInt()
+  created: number;
 }
 
 export class StripeWebhookDto extends BaseWebhookDto {
-  @IsString()
-  @IsNotEmpty()
-  livemode: string;
+  @Type(() => Boolean)
+  @IsBoolean()
+  livemode: boolean;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  api_version: string;
+  api_version?: string;
 
+  @IsOptional()
   @IsObject()
-  request: any;
+  request?: Record<string, unknown> | null;
 }
