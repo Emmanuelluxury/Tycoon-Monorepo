@@ -1,5 +1,6 @@
 /**
  * ShopGrid — TypeScript strictness, null guards, and accessibility tests
+ * SW-FE-017: Shop grid — accessibility and focus order
  * SW-FE-848: Shop grid TypeScript strictness and null guards
  * SW-FE-847: Shop grid accessibility and focus order
  */
@@ -235,5 +236,87 @@ describe("ShopGrid — existing behaviour", () => {
     render(<ShopGrid items={sampleItems} />);
     fireEvent.click(screen.getByTestId("shop-item-buy-1"));
     expect(mockTrackPurchaseInitiated).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ─── Focus order & keyboard navigation (SW-FE-017) ─────────────────────────────
+
+describe("ShopGrid — focus order & keyboard navigation (SW-FE-017)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("first item has tabIndex=0, others have tabIndex=-1", () => {
+    render(<ShopGrid items={sampleItems} />);
+    // The ShopItem cards inside the list items carry the tabIndex
+    const cards = screen.getAllByTestId(/^shop-item-\d+$/);
+    expect(cards[0]).toHaveAttribute("tabIndex", "0");
+    expect(cards[1]).toHaveAttribute("tabIndex", "-1");
+    expect(cards[2]).toHaveAttribute("tabIndex", "-1");
+  });
+
+  it("ArrowRight moves focus to next item", () => {
+    render(<ShopGrid items={sampleItems} columns={3} />);
+    const grid = screen.getByTestId("shop-grid-items");
+    fireEvent.keyDown(grid, { key: "ArrowRight" });
+    // After one ArrowRight the second card should receive tabIndex=0
+    const cards = screen.getAllByTestId(/^shop-item-\d+$/);
+    expect(cards[1]).toHaveAttribute("tabIndex", "0");
+    expect(cards[0]).toHaveAttribute("tabIndex", "-1");
+  });
+
+  it("ArrowLeft moves focus to previous item and clamps at 0", () => {
+    render(<ShopGrid items={sampleItems} columns={3} />);
+    const grid = screen.getByTestId("shop-grid-items");
+    // Move right first, then back left
+    fireEvent.keyDown(grid, { key: "ArrowRight" });
+    fireEvent.keyDown(grid, { key: "ArrowLeft" });
+    const cards = screen.getAllByTestId(/^shop-item-\d+$/);
+    expect(cards[0]).toHaveAttribute("tabIndex", "0");
+  });
+
+  it("End key moves focus to last item", () => {
+    render(<ShopGrid items={sampleItems} columns={3} />);
+    const grid = screen.getByTestId("shop-grid-items");
+    fireEvent.keyDown(grid, { key: "End" });
+    const cards = screen.getAllByTestId(/^shop-item-\d+$/);
+    expect(cards[cards.length - 1]).toHaveAttribute("tabIndex", "0");
+  });
+
+  it("Home key moves focus back to first item", () => {
+    render(<ShopGrid items={sampleItems} columns={3} />);
+    const grid = screen.getByTestId("shop-grid-items");
+    fireEvent.keyDown(grid, { key: "End" });
+    fireEvent.keyDown(grid, { key: "Home" });
+    const cards = screen.getAllByTestId(/^shop-item-\d+$/);
+    expect(cards[0]).toHaveAttribute("tabIndex", "0");
+  });
+
+  it("grid ul has role='list' semantics (list-none does not remove ARIA role)", () => {
+    render(<ShopGrid items={sampleItems} />);
+    const grid = screen.getByTestId("shop-grid-items");
+    // ul is implicitly role=list; aria-label makes it discoverable
+    expect(grid.tagName).toBe("UL");
+    expect(grid).toHaveAttribute("aria-label", "Shop items grid");
+  });
+
+  it("live region announces item count when items load", () => {
+    render(<ShopGrid items={sampleItems} />);
+    const liveRegion = screen.getByTestId("shop-grid-live-region");
+    expect(liveRegion).toHaveAttribute("aria-live", "polite");
+    expect(liveRegion).toHaveAttribute("aria-atomic", "true");
+    expect(liveRegion).toHaveTextContent(`${sampleItems.length} shop items loaded.`);
+  });
+
+  it("live region announces loading state", () => {
+    render(<ShopGrid isLoading />);
+    const liveRegion = screen.getByTestId("shop-grid-live-region");
+    expect(liveRegion).toHaveTextContent("Loading shop items…");
+  });
+
+  it("each buy button has aria-label describing the item", () => {
+    render(<ShopGrid items={sampleItems} />);
+    expect(screen.getByRole("button", { name: /buy speed boost/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /buy get out of jail free/i })).toBeInTheDocument();
   });
 });
