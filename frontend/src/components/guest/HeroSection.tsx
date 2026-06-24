@@ -40,29 +40,36 @@ function usePrefersReducedMotion(): boolean {
 }
 
 const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
-  const { fire } = useHeroTelemetry();
+  const { fire, fireError } = useHeroTelemetry();
   const { navigateSafely } = useHeroNavigation();
   const prefersReducedMotion = usePrefersReducedMotion();
   const [error, setError] = useState<HeroErrorState>({ hasError: false, message: "" });
 
-  // SW-3: fire hero_view once on mount
+  // SW-FE-001: Track hero view on mount (once per session)
   useEffect(() => {
     fire("hero_view");
   }, [fire]);
 
-  // SW-FE-001: Secure navigation with validation and rate limiting
+  // SW-FE-001: Secure navigation with validation, rate limiting, and telemetry
   const handleTrackedNavigation = useCallback(
     (event: "continue_game_click" | "multiplayer_click" | "join_room_click" | "challenge_ai_click", destination: string) => {
-      // Track before navigation
-      fire(event);
+      // Track CTA click before navigation attempt
+      fire("hero_cta_click");
 
       // Navigate with security validation
       const navError = navigateSafely(event, destination);
       if (navError) {
+        // Track error type for telemetry
+        if (event === "join_room_click" || event === "challenge_ai_click") {
+          // If rate limit, track as rate_limit_exceeded
+          fireError("rate_limit_exceeded");
+        } else {
+          fireError("validation_failed");
+        }
         setError(navError);
       }
     },
-    [fire, navigateSafely],
+    [fire, fireError, navigateSafely],
   );
 
   // SW-FE-001: Error state — show safe message when navigation fails
