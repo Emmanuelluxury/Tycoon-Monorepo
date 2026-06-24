@@ -2,11 +2,11 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useRouter } from 'next/navigation';
 import JoinRoomForm from '../JoinRoomForm';
-import { vi, describe, it, expect, beforeEach, afterEach, Mock } from 'vitest';
+import { track } from '@/lib/analytics';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { setupServer } from 'msw/node';
 import { joinRoomHandlers } from '@/mocks/joinRoomHandlers';
 
-let trackSpy: Mock;
 vi.mock('@/lib/analytics', () => ({
   track: vi.fn(),
 }));
@@ -22,7 +22,6 @@ const server = setupServer(...joinRoomHandlers);
 beforeEach(() => {
   server.listen({ onUnhandledRequest: 'error' });
   vi.clearAllMocks();
-  trackSpy.mockClear();
 });
 
 afterEach(() => {
@@ -50,7 +49,7 @@ describe('JoinRoomForm', () => {
 
     it('should track form view on mount', () => {
       render(<JoinRoomForm />);
-      expect(trackSpy).toHaveBeenCalledWith('join_room_form_viewed', {
+      expect(track).toHaveBeenCalledWith('join_room_form_viewed', {
         route: '/join-room',
         source: 'page_load',
       });
@@ -372,7 +371,7 @@ describe('JoinRoomForm', () => {
       });
     });
 
-    it('should link input to error message with aria-describedby', async () => {
+    it('should link input to error message and hint with aria-describedby', async () => {
       render(<JoinRoomForm />);
       const input = screen.getByPlaceholderText('e.g. TYCOON');
       const submitButton = screen.getByRole('button', { name: /join/i });
@@ -380,7 +379,34 @@ describe('JoinRoomForm', () => {
       await userEvent.click(submitButton);
 
       await waitFor(() => {
-        expect(input).toHaveAttribute('aria-describedby', 'room-code-error');
+        expect(input).toHaveAttribute('aria-describedby');
+        expect((input as HTMLElement).getAttribute('aria-describedby')).toContain('room-code-error');
+        expect((input as HTMLElement).getAttribute('aria-describedby')).toContain('room-code-hint');
+      });
+    });
+
+    it('should focus the room code input when a field-level validation error appears', async () => {
+      render(<JoinRoomForm />);
+      const input = screen.getByPlaceholderText('e.g. TYCOON');
+      const submitButton = screen.getByRole('button', { name: /join/i });
+
+      await userEvent.click(submitButton);
+
+      await waitFor(() => {
+        expect(input).toHaveFocus();
+      });
+    });
+
+    it('should move focus to form-level error banner when join fails', async () => {
+      render(<JoinRoomForm />);
+      const input = screen.getByPlaceholderText('e.g. TYCOON');
+      const submitButton = screen.getByRole('button', { name: /join/i });
+
+      await userEvent.type(input, 'NOTFND');
+      await userEvent.click(submitButton);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('form-error-banner')).toHaveFocus();
       });
     });
 

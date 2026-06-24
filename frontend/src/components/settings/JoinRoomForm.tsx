@@ -76,6 +76,7 @@ export default function JoinRoomForm({
 
   const inputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const formErrorRef = useRef<HTMLDivElement>(null);
   const lastSubmitRef = useRef<number>(0);
 
   const errorId = "room-code-error";
@@ -87,6 +88,17 @@ export default function JoinRoomForm({
     if (previewState?.skipAutoFocus) return;
     inputRef.current?.focus();
   }, [previewState?.skipAutoFocus]);
+
+  React.useEffect(() => {
+    if (errors.roomCode) {
+      inputRef.current?.focus();
+      return;
+    }
+
+    if (errors._form) {
+      formErrorRef.current?.focus();
+    }
+  }, [errors._form, errors.roomCode]);
 
   React.useEffect(() => {
     trackFormViewed("page_load");
@@ -204,6 +216,8 @@ export default function JoinRoomForm({
     <form ref={formRef} onSubmit={handleSubmit} noValidate className="space-y-5">
       {errors._form && (
         <div
+          ref={formErrorRef}
+          tabIndex={-1}
           role="alert"
           data-testid="form-error-banner"
           className="flex items-start gap-2 rounded-lg border border-red-400/30 bg-red-400/10 px-3 py-2.5 text-sm text-red-300"
@@ -248,8 +262,6 @@ export default function JoinRoomForm({
           autoComplete="off"
           spellCheck={false}
           aria-required="true"
-          aria-describedby={errors.roomCode ? errorId : undefined}
-          aria-invalid={!!errors.roomCode}
           className="bg-[var(--tycoon-bg)] border-[var(--tycoon-border)] text-[var(--tycoon-text)] placeholder:text-[var(--tycoon-text)]/40 focus-visible:ring-[var(--tycoon-accent)] font-orbitron tracking-widest uppercase"
         />
       </FormField>
