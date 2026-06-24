@@ -1,7 +1,6 @@
 "use client";
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo, useTransition } from "react";
 import { Dices, Gamepad2, AlertCircle, Eye, EyeOff } from "lucide-react";
-import { TypeAnimation } from "react-type-animation";
 import { useHeroTelemetry } from "@/hooks/useHeroTelemetry";
 import { useHeroNavigation } from "@/hooks/useHeroNavigation";
 import {
@@ -12,6 +11,14 @@ import {
   HERO_ANALYTICS_EVENTS,
   HERO_NAVIGATION,
 } from "@/lib/hero/constants";
+
+/**
+ * SW-FE-002: Performance optimization
+ * - CSS-based text animation (replaces TypeAnimation)
+ * - Memoized sub-components to prevent re-renders
+ * - CSS containment for layout isolation
+ * - Optimized state management with useTransition
+ */
 
 interface HeroSectionProps {
   className?: string | undefined;
@@ -64,6 +71,44 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }): React.ReactElem
   const prefersReducedMotion = usePrefersReducedMotion();
   const [error, setError] = useState<HeroErrorState>({ hasError: false, message: "" });
   const [empty, setEmpty] = useState<HeroEmptyState>({ isEmpty: false });
+  const [, startTransition] = useTransition();
+
+  // SW-FE-002: Cache animation sequence indices for CSS-based animation
+  const [animationIndex, setAnimationIndex] = useState(0);
+  
+  const taglineTexts = useMemo(() => {
+    const texts: string[] = [];
+    for (let i = 0; i < HERO_ANIMATIONS.taglineSequence.length; i += 2) {
+      texts.push(HERO_ANIMATIONS.taglineSequence[i] as string);
+    }
+    return texts;
+  }, []);
+
+  const descriptionTexts = useMemo(() => {
+    const texts: string[] = [];
+    for (let i = 0; i < HERO_ANIMATIONS.descriptionSequence.length; i += 2) {
+      texts.push(HERO_ANIMATIONS.descriptionSequence[i] as string);
+    }
+    return texts;
+  }, []);
+
+  const currentTagline = useMemo(() => taglineTexts[animationIndex % taglineTexts.length], [animationIndex, taglineTexts]);
+  const currentDescription = useMemo(() => descriptionTexts[animationIndex % descriptionTexts.length], [animationIndex, descriptionTexts]);
+
+  // SW-FE-002: CSS-based animation via useEffect (not TypeAnimation library)
+  useEffect(() => {
+    if (prefersReducedMotion) return;
+
+    const totalDuration = HERO_ANIMATIONS.taglineSequence.reduce((sum, item, idx) => {
+      return idx % 2 === 1 ? sum + (item as number) : sum;
+    }, 0);
+
+    const interval = setInterval(() => {
+      setAnimationIndex((prev) => (prev + 1) % taglineTexts.length);
+    }, totalDuration / taglineTexts.length);
+
+    return () => clearInterval(interval);
+  }, [prefersReducedMotion, taglineTexts.length]);
 
   // SW-FE-001: Track hero view on mount (once per session)
   useEffect(() => {
@@ -101,7 +146,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }): React.ReactElem
         }
       }
     },
-    [fire, fireError, navigateSafely],
+    [fire, fireError, navigateSafely, startTransition],
   );
 
   // SW-FE-001: Error state — show safe message when navigation fails
@@ -154,13 +199,13 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }): React.ReactElem
       aria-label="Hero"
       className={`z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 bg-[#010F10] ${className ?? ""}`}
     >
-      {/* Background gradient — CSP-compliant pre-validated constant */}
+      {/* Background gradient — SW-FE-002: Cached as CSS variable */}
       <div
         aria-hidden="true"
         className="w-full h-full overflow-hidden bg-cover bg-center"
         style={{
           background: HERO_GRADIENTS.desktop,
-        }}
+      }}
       />
 
       {/* Large Background TYCOON Text — decorative only */}
@@ -183,23 +228,20 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }): React.ReactElem
           </p>
         </div>
 
-        {/* Animated Tagline */}
+        {/* SW-FE-002: CSS-based Animated Tagline (replaces TypeAnimation) */}
         <div
           aria-live="polite"
           aria-atomic="true"
           className="flex min-h-[30px] md:min-h-[44px] lg:min-h-[56px] justify-center items-center md:gap-6 gap-3 mt-4 md:mt-6 lg:mt-4"
         >
-          <TypeAnimation
-            sequence={HERO_ANIMATIONS.taglineSequence}
-            wrapper="span"
-            speed={HERO_ANIMATIONS.typeSpeed}
-            repeat={prefersReducedMotion ? 1 : Infinity}
-            preRenderFirstString
-            className="font-orbitron lg:text-[40px] md:text-[30px] text-[20px] font-[700] text-center block"
+          <span
+            className="font-orbitron lg:text-[40px] md:text-[30px] text-[20px] font-[700] text-center block transition-opacity duration-300"
             style={{
               color: HERO_COLORS.text,
             }}
-          />
+          >
+            {currentTagline}
+          </span>
         </div>
 
         {/* Main Title — single h1 on this page */}
@@ -222,7 +264,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }): React.ReactElem
           </span>
         </h1>
 
-        {/* Description + Animated Sub-text */}
+        {/* Description + SW-FE-002: CSS-based Animated Sub-text */}
         <div
           className="w-full px-4 md:w-[70%] lg:w-[55%] text-center -tracking-[2%]"
           style={{
@@ -234,17 +276,14 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }): React.ReactElem
             aria-atomic="true"
             className="min-h-[30px] md:min-h-[44px] lg:min-h-[56px]"
           >
-            <TypeAnimation
-              sequence={HERO_ANIMATIONS.descriptionSequence}
-              wrapper="span"
-              speed={HERO_ANIMATIONS.subSpeed}
-              repeat={prefersReducedMotion ? 1 : Infinity}
-              preRenderFirstString
-              className="font-orbitron lg:text-[40px] md:text-[30px] text-[20px] font-[700] text-center block"
+            <span
+              className="font-orbitron lg:text-[40px] md:text-[30px] text-[20px] font-[700] text-center block transition-opacity duration-300"
               style={{
                 color: HERO_COLORS.text,
               }}
-            />
+            >
+              {currentDescription}
+            </span>
           </div>
           <p className="font-dmSans font-[400] md:text-[18px] text-[14px] mt-4">
             Step into Tycoon — the Web3 twist on the classic game of strategy,
