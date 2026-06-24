@@ -19,7 +19,8 @@ const ALLOWED_SORT_FIELDS = new Set(['id', 'eventType', 'source', 'createdAt']);
 @Injectable()
 export class WebhooksService {
   private readonly webhookSecret: string;
-  private readonly toleranceSeconds = 300; // 5 minutes
+  private readonly toleranceSeconds: number;
+  private readonly idempotencyTtlDays: number;
 
   constructor(
     private readonly configService: ConfigService,
@@ -29,9 +30,15 @@ export class WebhooksService {
     @InjectRepository(WebhookEvent)
     private readonly webhookEventRepo: Repository<WebhookEvent>,
   ) {
-    this.webhookSecret =
-      this.configService.get<string>('WEBHOOK_SECRET') ||
-      'default_secret_change_me';
+    this.webhookSecret = this.configService.get<string>('WEBHOOK_SECRET');
+    this.toleranceSeconds = this.configService.get<number>(
+      'WEBHOOK_SIGNATURE_TOLERANCE_SECONDS',
+      300,
+    );
+    this.idempotencyTtlDays = this.configService.get<number>(
+      'WEBHOOK_IDEMPOTENCY_TTL_DAYS',
+      7,
+    );
   }
 
   /**
@@ -212,8 +219,9 @@ export class WebhooksService {
         return { received: true, idempotent: true };
       }
 
-      // Mark as processed (TTL of 7 days to handle potential retries)
-      await this.redisService.set(idempotencyKey, true, 604800);
+      // Mark as processed (TTL configurable via WEBHOOK_IDEMPOTENCY_TTL_DAYS env var)
+      const idempotencyTtlSeconds = this.idempotencyTtlDays * 86400;
+      await this.redisService.set(idempotencyKey, true, idempotencyTtlSeconds);
 
       // Persist the event for audit / listing
       await this.webhookEventRepo.save(

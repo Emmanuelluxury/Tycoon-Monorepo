@@ -21,7 +21,7 @@ import {
  */
 
 interface HeroSectionProps {
-  className?: string;
+  className?: string | undefined;
 }
 
 interface HeroErrorState {
@@ -42,367 +42,31 @@ function usePrefersReducedMotion(): boolean {
     if (typeof window === "undefined") return;
 
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (!mq) {
+      return;
+    }
+    
     setReduced(mq.matches);
 
-    const onChange = () => setReduced(mq.matches);
+    const onChange = (event: MediaQueryListEvent): void => {
+      setReduced(event.matches);
+    };
+    
     mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
+    return () => {
+      mq.removeEventListener("change", onChange);
+    };
   }, []);
 
   return reduced;
 }
 
-/**
- * Hero Error State Component
- * SW-FE-002: Memoized to prevent re-renders from parent
- * SW-FE-001: Displays error with retry and home navigation options
- */
-const HeroErrorDisplay = React.memo(function HeroErrorDisplay({
-  error,
-  onRetry,
-}: {
-  error: HeroErrorState;
-  onRetry: () => void;
-}) {
-  const [showDetails, setShowDetails] = useState(false);
+const typeSpeed = 40;
+const subSpeed = 30;
 
-  return (
-    <section
-      aria-label="Hero Error"
-      role="alert"
-      aria-live="assertive"
-      className="z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 flex items-center justify-center"
-      style={{
-        backgroundColor: HERO_COLORS.primary,
-        background: HERO_GRADIENTS.desktop,
-        contain: "layout",
-      }}
-    >
-      <div className="max-w-md w-full px-4 space-y-6">
-        {/* Error Icon */}
-        <div className="flex justify-center">
-          <div className="relative">
-            <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center">
-              <AlertCircle className="w-10 h-10 text-red-500" aria-hidden="true" />
-            </div>
-            <div className="absolute inset-0 w-20 h-20 rounded-full bg-red-500/20 blur-xl" />
-          </div>
-        </div>
-
-        {/* Error Message */}
-        <div className="text-center space-y-3">
-          <p
-            className="font-orbitron text-[24px] md:text-[28px] font-[700]"
-            style={{ color: HERO_COLORS.accent }}
-          >
-            Something went wrong
-          </p>
-          <p
-            className="font-dmSans text-[14px] md:text-[16px] leading-relaxed"
-            style={{ color: HERO_COLORS.textSubtle }}
-          >
-            {error.message}
-          </p>
-
-          {/* Optional Details Toggle */}
-          {error.type && (
-            <button
-              onClick={() => setShowDetails(!showDetails)}
-              className="inline-flex items-center gap-2 text-xs mt-3 opacity-60 hover:opacity-100 transition-opacity"
-              style={{ color: HERO_COLORS.accent }}
-            >
-              {showDetails ? <EyeOff size={14} /> : <Eye size={14} />}
-              {showDetails ? "Hide" : "Show"} error code
-            </button>
-          )}
-
-          {showDetails && error.type && (
-            <p
-              className="font-mono text-xs p-2 rounded bg-black/20 mt-2"
-              style={{ color: HERO_COLORS.accent }}
-            >
-              {error.type}
-            </p>
-          )}
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex flex-col gap-3 pt-4">
-          <button
-            onClick={onRetry}
-            className="w-full px-6 py-3 rounded-lg font-orbitron font-[700] text-[14px] transition-all hover:opacity-90 active:scale-95"
-            style={{
-              backgroundColor: HERO_COLORS.accent,
-              color: HERO_COLORS.primary,
-            }}
-            aria-label="Try again"
-          >
-            Try Again
-          </button>
-          <button
-            onClick={() => (window.location.href = "/")}
-            className="w-full px-6 py-3 rounded-lg font-orbitron font-[700] text-[14px] transition-all hover:opacity-90 active:scale-95 border-2"
-            style={{
-              borderColor: HERO_COLORS.border,
-              color: HERO_COLORS.text,
-              backgroundColor: "transparent",
-            }}
-            aria-label="Go to home"
-          >
-            Go Home
-          </button>
-        </div>
-
-        {/* Support Link */}
-        <p className="text-center text-xs" style={{ color: HERO_COLORS.textSubtle }}>
-          Need help?{" "}
-          <a
-            href="/support"
-            className="underline transition-opacity hover:opacity-70"
-            style={{ color: HERO_COLORS.accent }}
-          >
-            Contact support
-          </a>
-        </p>
-      </div>
-    </section>
-  );
-});
-
-/**
- * Hero Empty State Component
- * SW-FE-002: Memoized to prevent re-renders from parent
- * SW-FE-001: Displays when no game is available or service is unavailable
- */
-const HeroEmptyState = React.memo(function HeroEmptyState({
-  reason = "offline",
-}: {
-  reason?: "offline" | "loading" | "maintenance";
-}) {
-  const messages = {
-    offline: {
-      title: "Offline",
-      description: "Check your connection and try again.",
-      hint: "Make sure you're connected to the internet.",
-    },
-    loading: {
-      title: "Loading...",
-      description: "Getting things ready for you.",
-      hint: "This usually takes a moment.",
-    },
-    maintenance: {
-      title: "Under Maintenance",
-      description: "We're making improvements to the game.",
-      hint: "Check back soon!",
-    },
-  };
-
-  const config = messages[reason];
-
-  return (
-    <section
-      aria-label="Hero Unavailable"
-      role="status"
-      aria-busy={reason === "loading"}
-      className="z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 flex items-center justify-center"
-      style={{
-        backgroundColor: HERO_COLORS.primary,
-        background: HERO_GRADIENTS.desktop,
-        contain: "layout",
-      }}
-    >
-      <div className="max-w-md w-full px-4 space-y-6 text-center">
-        {/* Loading/Status Indicator */}
-        {reason === "loading" && (
-          <div className="flex justify-center gap-2">
-            <div
-              className="w-3 h-3 rounded-full animate-pulse"
-              style={{ backgroundColor: HERO_COLORS.accent, animationDelay: "0ms" }}
-            />
-            <div
-              className="w-3 h-3 rounded-full animate-pulse"
-              style={{ backgroundColor: HERO_COLORS.accent, animationDelay: "150ms" }}
-            />
-            <div
-              className="w-3 h-3 rounded-full animate-pulse"
-              style={{ backgroundColor: HERO_COLORS.accent, animationDelay: "300ms" }}
-            />
-          </div>
-        )}
-
-        {/* Message */}
-        <div className="space-y-2">
-          <p
-            className="font-orbitron text-[24px] md:text-[28px] font-[700]"
-            style={{ color: HERO_COLORS.accent }}
-          >
-            {config.title}
-          </p>
-          <p
-            className="font-dmSans text-[14px] md:text-[16px] leading-relaxed"
-            style={{ color: HERO_COLORS.textSubtle }}
-          >
-            {config.description}
-          </p>
-          <p
-            className="text-xs"
-            style={{ color: HERO_COLORS.textSubtle, opacity: 0.7 }}
-          >
-            {config.hint}
-          </p>
-        </div>
-
-        {/* Action Button */}
-        {reason !== "loading" && (
-          <button
-            onClick={() => window.location.reload()}
-            className="w-full px-6 py-3 rounded-lg font-orbitron font-[700] text-[14px] transition-all hover:opacity-90 active:scale-95 mt-6"
-            style={{
-              backgroundColor: HERO_COLORS.accent,
-              color: HERO_COLORS.primary,
-            }}
-            aria-label="Reload page"
-          >
-            Reload
-          </button>
-        )}
-      </div>
-    </section>
-  );
-});
-
-/**
- * Memoized Buttons Container
- * SW-FE-002: Extracted for performance - prevents re-renders when other state changes
- */
-const HeroButtonsContainer = React.memo(function HeroButtonsContainer({
-  onNavigate,
-  prefersReducedMotion,
-}: {
-  onNavigate: (event: "continue_game_click" | "multiplayer_click" | "join_room_click" | "challenge_ai_click", destination: string) => void;
-  prefersReducedMotion: boolean;
-}) {
-  return (
-    <div className="z-1 w-full flex flex-col justify-center items-center mt-6 gap-4">
-      {/* Continue Game */}
-      <button
-        data-testid="hero-primary-cta"
-        aria-label="Continue game"
-        onClick={() => onNavigate("continue_game_click", "/game-settings")}
-        className="relative group w-[300px] h-[56px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-105"
-      >
-        <svg
-          aria-hidden="true"
-          width="300"
-          height="56"
-          viewBox="0 0 300 56"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          className={`absolute top-0 left-0 w-full h-full transform scale-x-[-1] ${!prefersReducedMotion ? "group-hover:animate-pulse" : ""}`}
-        >
-          <path
-            d="M12 1H288C293.373 1 296 7.85486 293.601 12.5127L270.167 54.5127C269.151 56.0646 267.42 57 265.565 57H12C8.96244 57 6.5 54.5376 6.5 51.5V9.5C6.5 6.46243 8.96243 4 12 4Z"
-            fill="#00F0FF"
-            stroke="#0E282A"
-            strokeWidth={2}
-          />
-        </svg>
-        <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[20px] font-orbitron font-[700] z-2">
-          <Gamepad2 className="mr-2 w-7 h-7" />
-          Continue Game
-        </span>
-      </button>
-
-      {/* Multiplayer */}
-      <button
-        aria-label="Multiplayer"
-        onClick={() => onNavigate("multiplayer_click", "/game-settings")}
-        className="relative group w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
-      >
-        <svg
-          aria-hidden="true"
-          width="227"
-          height="40"
-          viewBox="0 0 227 40"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          className={`absolute top-0 left-0 w-full h-full transform scale-x-[-1] scale-y-[-1] ${!prefersReducedMotion ? "group-hover:stroke-[#00F0FF] transition-all duration-300" : ""}`}
-        >
-          <path
-            d="M6 1H221C225.373 1 227.996 5.85486 225.601 9.5127L207.167 37.5127C206.151 39.0646 204.42 40 202.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
-            fill="#003B3E"
-            stroke="#003B3E"
-            strokeWidth={1}
-            className={`${!prefersReducedMotion ? "group-hover:stroke-[#00F0FF] transition-all duration-300" : ""}`}
-          />
-        </svg>
-        <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-2">
-          <Gamepad2 className="mr-1.5 w-[16px] h-[16px]" />
-          Multiplayer
-        </span>
-      </button>
-
-      {/* Join Room */}
-      <button
-        aria-label="Join room"
-        onClick={() => onNavigate("join_room_click", "/join-room")}
-        className="relative group w-[140px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
-      >
-        <svg
-          aria-hidden="true"
-          width="140"
-          height="40"
-          viewBox="0 0 140 40"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          className={`absolute top-0 left-0 w-full h-full ${!prefersReducedMotion ? "group-hover:stroke-[#00F0FF] transition-all duration-300" : ""}`}
-        >
-          <path
-            d="M6 1H134C138.373 1 140.996 5.85486 138.601 9.5127L120.167 37.5127C119.151 39.0646 117.42 40 115.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
-            fill="#0E1415"
-            stroke="#003B3E"
-            strokeWidth={1}
-            className={`${!prefersReducedMotion ? "group-hover:stroke-[#00F0FF] transition-all duration-300" : ""}`}
-          />
-        </svg>
-        <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-[#0FF0FC] capitalize text-[12px] font-dmSans font-medium z-2">
-          <Dices className="mr-1.5 w-[16px] h-[16px]" />
-          Join Room
-        </span>
-      </button>
-
-      {/* Challenge AI */}
-      <button
-        aria-label="Challenge AI"
-        onClick={() => onNavigate("challenge_ai_click", "/play-ai")}
-        className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform duration-300 group-hover:scale-105"
-      >
-        <svg
-          aria-hidden="true"
-          width="260"
-          height="52"
-          viewBox="0 0 260 52"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          className={`absolute top-0 left-0 w-full h-full transform scale-x-[-1] ${!prefersReducedMotion ? "group-hover:animate-pulse" : ""}`}
-        >
-          <path
-            d="M10 1H250C254.373 1 256.996 6.85486 254.601 10.5127L236.167 49.5127C235.151 51.0646 233.42 52 231.565 52H10C6.96244 52 4.5 49.5376 4.5 46.5V9.5C4.5 6.46243 6.96243 4 10 4Z"
-            fill="#00F0FF"
-            stroke="#0E282A"
-            strokeWidth={1}
-          />
-        </svg>
-        <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-[#010F10] uppercase text-[16px] -tracking-[2%] font-orbitron font-[700] z-2">
-          Challenge AI!
-        </span>
-      </button>
-    </div>
-  );
-});
-
-const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
-  const { fire, fireError } = useHeroTelemetry();
+const HeroSection: React.FC<HeroSectionProps> = ({ className }): React.ReactElement => {
+  const router = useRouter();
+  const { fire } = useHeroTelemetry();
   const { navigateSafely } = useHeroNavigation();
   const prefersReducedMotion = usePrefersReducedMotion();
   const [error, setError] = useState<HeroErrorState>({ hasError: false, message: "" });
@@ -451,24 +115,35 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
     fire("hero_view");
   }, [fire]);
 
-  // SW-FE-002: Optimized navigation handler with event delegation
+  // SW-FE-001: Announce hero section to screen readers on mount
+  useEffect(() => {
+    const announcement = document.createElement("div");
+    announcement.setAttribute("role", "status");
+    announcement.setAttribute("aria-live", "polite");
+    announcement.setAttribute("aria-atomic", "true");
+    announcement.className = "sr-only";
+    announcement.textContent = "Hero section loaded. Use Tab to navigate through game options.";
+    document.body.appendChild(announcement);
+
+    return () => {
+      document.body.removeChild(announcement);
+    };
+  }, []);
+
+  // SW-FE-005: Error boundary for navigation failures
   const handleTrackedNavigation = useCallback(
-    (event: "continue_game_click" | "multiplayer_click" | "join_room_click" | "challenge_ai_click", destination: string) => {
-      fire("hero_cta_click");
-
-      const navError = navigateSafely(event, destination);
-      if (navError) {
-        let errorType: "navigation" | "rate_limit" | "validation" = "validation";
-        if (navError.message.includes("wait before clicking")) {
-          errorType = "rate_limit";
-        } else if (navError.message.includes("Invalid destination")) {
-          errorType = "navigation";
+    (event: "continue_game_click" | "multiplayer_click" | "join_room_click" | "challenge_ai_click", destination: string): void => {
+      try {
+        fire(event);
+        router.push(destination);
+      } catch (err: unknown) {
+        const sanitized = sanitizeError(err);
+        if (sanitized !== null) {
+          setError({ 
+            hasError: true, 
+            message: sanitized.userMessage ?? "An unexpected error occurred" 
+          });
         }
-
-        fireError(errorType === "rate_limit" ? "rate_limit_exceeded" : "validation_failed");
-        startTransition(() => {
-          setError({ hasError: true, message: navError.message, type: errorType });
-        });
       }
     },
     [fire, fireError, navigateSafely, startTransition],
@@ -477,15 +152,40 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
   // SW-FE-001: Error state — show safe message when navigation fails
   if (error.hasError) {
     return (
-      <HeroErrorDisplay
-        error={error}
-        onRetry={() => {
-          startTransition(() => {
-            setError({ hasError: false, message: "" });
-          });
-          fire("hero_view");
-        }}
-      />
+      <section
+        aria-label="Hero"
+        role="alert"
+        className={`z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 bg-[#010F10] flex items-center justify-center ${className ?? ""}`}
+      >
+        <div className="text-center px-4">
+          <p
+            className="font-orbitron text-[20px] md:text-[28px] font-[700] mb-4"
+            style={{
+              color: HERO_COLORS.accent,
+            }}
+          >
+            Something went wrong
+          </p>
+          <p
+            className="font-dmSans text-[14px] md:text-[16px] mb-6"
+            style={{
+              color: HERO_COLORS.text,
+            }}
+          >
+            {error.message}
+          </p>
+          <button
+            onClick={() => {
+              setError({ hasError: false, message: "" });
+              fire("hero_view");
+            }}
+            className="font-orbitron text-[#010F10] bg-[#00F0FF] px-6 py-3 rounded-lg font-[700] text-[14px] hover:opacity-90 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[#010F10] focus-visible:ring-[#00F0FF]"
+            aria-label="Try again"
+          >
+            Try Again
+          </button>
+        </div>
+      </section>
     );
   }
 
@@ -497,11 +197,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
   return (
     <section
       aria-label="Hero"
-      className={`z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 ${className || ""}`}
-      style={{
-        backgroundColor: HERO_COLORS.primary,
-        contain: "layout",
-      }}
+      className={`z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 bg-[#010F10] ${className ?? ""}`}
     >
       {/* Background gradient — SW-FE-002: Cached as CSS variable */}
       <div
@@ -597,11 +293,122 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
           </p>
         </div>
 
-        {/* Action Buttons — SW-FE-002: Memoized to prevent re-renders */}
-        <HeroButtonsContainer 
-          onNavigate={handleTrackedNavigation}
-          prefersReducedMotion={prefersReducedMotion}
-        />
+        {/* Action Buttons */}
+        <div className="z-1 w-full flex flex-col justify-center items-center mt-6 gap-4">
+          {/* Continue Game */}
+          <button
+            data-testid="hero-primary-cta"
+            aria-label="Continue game"
+            onClick={() => handleTrackedNavigation("continue_game_click", "/game-settings")}
+            className="relative group w-[300px] h-[56px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#010F10] rounded-md"
+          >
+            <svg
+              aria-hidden="true"
+              width="300"
+              height="56"
+              viewBox="0 0 300 56"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              className={`absolute top-0 left-0 w-full h-full transform scale-x-[-1] ${!prefersReducedMotion ? "group-hover:animate-pulse" : ""}`}
+            >
+              <path
+                d="M12 1H288C293.373 1 296 7.85486 293.601 12.5127L270.167 54.5127C269.151 56.0646 267.42 57 265.565 57H12C8.96244 57 6.5 54.5376 6.5 51.5V9.5C6.5 6.46243 8.96243 4 12 4Z"
+                fill="#00F0FF"
+                stroke="#0E282A"
+                strokeWidth={2}
+              />
+            </svg>
+            <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[20px] font-orbitron font-[700] z-2">
+              <Gamepad2 className="mr-2 w-7 h-7" />
+              Continue Game
+            </span>
+          </button>
+
+          {/* Multiplayer */}
+          <button
+            aria-label="Multiplayer"
+            onClick={() => handleTrackedNavigation("multiplayer_click", "/game-settings")}
+            className="relative group w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#010F10] rounded-md"
+          >
+            <svg
+              aria-hidden="true"
+              width="227"
+              height="40"
+              viewBox="0 0 227 40"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              className={`absolute top-0 left-0 w-full h-full transform scale-x-[-1] scale-y-[-1] ${!prefersReducedMotion ? "group-hover:stroke-[#00F0FF] transition-all duration-300" : ""}`}
+            >
+              <path
+                d="M6 1H221C225.373 1 227.996 5.85486 225.601 9.5127L207.167 37.5127C206.151 39.0646 204.42 40 202.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
+                fill="#003B3E"
+                stroke="#003B3E"
+                strokeWidth={1}
+                className={`${!prefersReducedMotion ? "group-hover:stroke-[#00F0FF] transition-all duration-300" : ""}`}
+              />
+            </svg>
+            <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-2">
+              <Gamepad2 className="mr-1.5 w-[16px] h-[16px]" />
+              Multiplayer
+            </span>
+          </button>
+
+          {/* Join Room */}
+          <button
+            aria-label="Join room"
+            onClick={() => handleTrackedNavigation("join_room_click", "/join-room")}
+            className="relative group w-[140px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#010F10] rounded-md"
+          >
+            <svg
+              aria-hidden="true"
+              width="140"
+              height="40"
+              viewBox="0 0 140 40"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              className={`absolute top-0 left-0 w-full h-full ${!prefersReducedMotion ? "group-hover:stroke-[#00F0FF] transition-all duration-300" : ""}`}
+            >
+              <path
+                d="M6 1H134C138.373 1 140.996 5.85486 138.601 9.5127L120.167 37.5127C119.151 39.0646 117.42 40 115.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
+                fill="#0E1415"
+                stroke="#003B3E"
+                strokeWidth={1}
+                className={`${!prefersReducedMotion ? "group-hover:stroke-[#00F0FF] transition-all duration-300" : ""}`}
+              />
+            </svg>
+            <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-[#0FF0FC] capitalize text-[12px] font-dmSans font-medium z-2">
+              <Dices className="mr-1.5 w-[16px] h-[16px]" />
+              Join Room
+            </span>
+          </button>
+
+          {/* Challenge AI */}
+          <button
+            aria-label="Challenge AI"
+            onClick={() => handleTrackedNavigation("challenge_ai_click", "/play-ai")}
+            className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform duration-300 group-hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#010F10] rounded-md"
+          >
+            <svg
+              aria-hidden="true"
+              width="260"
+              height="52"
+              viewBox="0 0 260 52"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              className={`absolute top-0 left-0 w-full h-full transform scale-x-[-1] ${!prefersReducedMotion ? "group-hover:animate-pulse" : ""}`}
+            >
+              <path
+                d="M10 1H250C254.373 1 256.996 6.85486 254.601 10.5127L236.167 49.5127C235.151 51.0646 233.42 52 231.565 52H10C6.96244 52 4.5 49.5376 4.5 46.5V9.5C4.5 6.46243 6.96243 4 10 4Z"
+                fill="#00F0FF"
+                stroke="#0E282A"
+                strokeWidth={1}
+              />
+            </svg>
+            <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-[#010F10] uppercase text-[16px] -tracking-[2%] font-orbitron font-[700] z-2">
+              Challenge AI!
+            </span>
+          </button>
+        </div>
       </div>
     </section>
   );
