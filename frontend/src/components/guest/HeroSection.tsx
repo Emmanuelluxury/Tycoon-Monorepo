@@ -1,7 +1,6 @@
 "use client";
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo, useTransition } from "react";
 import { Dices, Gamepad2, AlertCircle, Eye, EyeOff } from "lucide-react";
-import { TypeAnimation } from "react-type-animation";
 import { useHeroTelemetry } from "@/hooks/useHeroTelemetry";
 import { useHeroNavigation } from "@/hooks/useHeroNavigation";
 import {
@@ -12,6 +11,14 @@ import {
   HERO_ANALYTICS_EVENTS,
   HERO_NAVIGATION,
 } from "@/lib/hero/constants";
+
+/**
+ * SW-FE-002: Performance optimization
+ * - CSS-based text animation (replaces TypeAnimation)
+ * - Memoized sub-components to prevent re-renders
+ * - CSS containment for layout isolation
+ * - Optimized state management with useTransition
+ */
 
 interface HeroSectionProps {
   className?: string;
@@ -47,9 +54,10 @@ function usePrefersReducedMotion(): boolean {
 
 /**
  * Hero Error State Component
+ * SW-FE-002: Memoized to prevent re-renders from parent
  * SW-FE-001: Displays error with retry and home navigation options
  */
-function HeroErrorDisplay({
+const HeroErrorDisplay = React.memo(function HeroErrorDisplay({
   error,
   onRetry,
 }: {
@@ -67,6 +75,7 @@ function HeroErrorDisplay({
       style={{
         backgroundColor: HERO_COLORS.primary,
         background: HERO_GRADIENTS.desktop,
+        contain: "layout",
       }}
     >
       <div className="max-w-md w-full px-4 space-y-6">
@@ -158,13 +167,14 @@ function HeroErrorDisplay({
       </div>
     </section>
   );
-}
+});
 
 /**
  * Hero Empty State Component
+ * SW-FE-002: Memoized to prevent re-renders from parent
  * SW-FE-001: Displays when no game is available or service is unavailable
  */
-function HeroEmptyState({
+const HeroEmptyState = React.memo(function HeroEmptyState({
   reason = "offline",
 }: {
   reason?: "offline" | "loading" | "maintenance";
@@ -198,6 +208,7 @@ function HeroEmptyState({
       style={{
         backgroundColor: HERO_COLORS.primary,
         background: HERO_GRADIENTS.desktop,
+        contain: "layout",
       }}
     >
       <div className="max-w-md w-full px-4 space-y-6 text-center">
@@ -258,7 +269,137 @@ function HeroEmptyState({
       </div>
     </section>
   );
-}
+});
+
+/**
+ * Memoized Buttons Container
+ * SW-FE-002: Extracted for performance - prevents re-renders when other state changes
+ */
+const HeroButtonsContainer = React.memo(function HeroButtonsContainer({
+  onNavigate,
+  prefersReducedMotion,
+}: {
+  onNavigate: (event: "continue_game_click" | "multiplayer_click" | "join_room_click" | "challenge_ai_click", destination: string) => void;
+  prefersReducedMotion: boolean;
+}) {
+  return (
+    <div className="z-1 w-full flex flex-col justify-center items-center mt-6 gap-4">
+      {/* Continue Game */}
+      <button
+        data-testid="hero-primary-cta"
+        aria-label="Continue game"
+        onClick={() => onNavigate("continue_game_click", "/game-settings")}
+        className="relative group w-[300px] h-[56px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-105"
+      >
+        <svg
+          aria-hidden="true"
+          width="300"
+          height="56"
+          viewBox="0 0 300 56"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          className={`absolute top-0 left-0 w-full h-full transform scale-x-[-1] ${!prefersReducedMotion ? "group-hover:animate-pulse" : ""}`}
+        >
+          <path
+            d="M12 1H288C293.373 1 296 7.85486 293.601 12.5127L270.167 54.5127C269.151 56.0646 267.42 57 265.565 57H12C8.96244 57 6.5 54.5376 6.5 51.5V9.5C6.5 6.46243 8.96243 4 12 4Z"
+            fill="#00F0FF"
+            stroke="#0E282A"
+            strokeWidth={2}
+          />
+        </svg>
+        <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[20px] font-orbitron font-[700] z-2">
+          <Gamepad2 className="mr-2 w-7 h-7" />
+          Continue Game
+        </span>
+      </button>
+
+      {/* Multiplayer */}
+      <button
+        aria-label="Multiplayer"
+        onClick={() => onNavigate("multiplayer_click", "/game-settings")}
+        className="relative group w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
+      >
+        <svg
+          aria-hidden="true"
+          width="227"
+          height="40"
+          viewBox="0 0 227 40"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          className={`absolute top-0 left-0 w-full h-full transform scale-x-[-1] scale-y-[-1] ${!prefersReducedMotion ? "group-hover:stroke-[#00F0FF] transition-all duration-300" : ""}`}
+        >
+          <path
+            d="M6 1H221C225.373 1 227.996 5.85486 225.601 9.5127L207.167 37.5127C206.151 39.0646 204.42 40 202.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
+            fill="#003B3E"
+            stroke="#003B3E"
+            strokeWidth={1}
+            className={`${!prefersReducedMotion ? "group-hover:stroke-[#00F0FF] transition-all duration-300" : ""}`}
+          />
+        </svg>
+        <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-2">
+          <Gamepad2 className="mr-1.5 w-[16px] h-[16px]" />
+          Multiplayer
+        </span>
+      </button>
+
+      {/* Join Room */}
+      <button
+        aria-label="Join room"
+        onClick={() => onNavigate("join_room_click", "/join-room")}
+        className="relative group w-[140px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
+      >
+        <svg
+          aria-hidden="true"
+          width="140"
+          height="40"
+          viewBox="0 0 140 40"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          className={`absolute top-0 left-0 w-full h-full ${!prefersReducedMotion ? "group-hover:stroke-[#00F0FF] transition-all duration-300" : ""}`}
+        >
+          <path
+            d="M6 1H134C138.373 1 140.996 5.85486 138.601 9.5127L120.167 37.5127C119.151 39.0646 117.42 40 115.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
+            fill="#0E1415"
+            stroke="#003B3E"
+            strokeWidth={1}
+            className={`${!prefersReducedMotion ? "group-hover:stroke-[#00F0FF] transition-all duration-300" : ""}`}
+          />
+        </svg>
+        <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-[#0FF0FC] capitalize text-[12px] font-dmSans font-medium z-2">
+          <Dices className="mr-1.5 w-[16px] h-[16px]" />
+          Join Room
+        </span>
+      </button>
+
+      {/* Challenge AI */}
+      <button
+        aria-label="Challenge AI"
+        onClick={() => onNavigate("challenge_ai_click", "/play-ai")}
+        className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform duration-300 group-hover:scale-105"
+      >
+        <svg
+          aria-hidden="true"
+          width="260"
+          height="52"
+          viewBox="0 0 260 52"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          className={`absolute top-0 left-0 w-full h-full transform scale-x-[-1] ${!prefersReducedMotion ? "group-hover:animate-pulse" : ""}`}
+        >
+          <path
+            d="M10 1H250C254.373 1 256.996 6.85486 254.601 10.5127L236.167 49.5127C235.151 51.0646 233.42 52 231.565 52H10C6.96244 52 4.5 49.5376 4.5 46.5V9.5C4.5 6.46243 6.96243 4 10 4Z"
+            fill="#00F0FF"
+            stroke="#0E282A"
+            strokeWidth={1}
+          />
+        </svg>
+        <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-[#010F10] uppercase text-[16px] -tracking-[2%] font-orbitron font-[700] z-2">
+          Challenge AI!
+        </span>
+      </button>
+    </div>
+  );
+});
 
 const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
   const { fire, fireError } = useHeroTelemetry();
@@ -266,22 +407,57 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
   const prefersReducedMotion = usePrefersReducedMotion();
   const [error, setError] = useState<HeroErrorState>({ hasError: false, message: "" });
   const [empty, setEmpty] = useState<HeroEmptyState>({ isEmpty: false });
+  const [, startTransition] = useTransition();
+
+  // SW-FE-002: Cache animation sequence indices for CSS-based animation
+  const [animationIndex, setAnimationIndex] = useState(0);
+  
+  const taglineTexts = useMemo(() => {
+    const texts: string[] = [];
+    for (let i = 0; i < HERO_ANIMATIONS.taglineSequence.length; i += 2) {
+      texts.push(HERO_ANIMATIONS.taglineSequence[i] as string);
+    }
+    return texts;
+  }, []);
+
+  const descriptionTexts = useMemo(() => {
+    const texts: string[] = [];
+    for (let i = 0; i < HERO_ANIMATIONS.descriptionSequence.length; i += 2) {
+      texts.push(HERO_ANIMATIONS.descriptionSequence[i] as string);
+    }
+    return texts;
+  }, []);
+
+  const currentTagline = useMemo(() => taglineTexts[animationIndex % taglineTexts.length], [animationIndex, taglineTexts]);
+  const currentDescription = useMemo(() => descriptionTexts[animationIndex % descriptionTexts.length], [animationIndex, descriptionTexts]);
+
+  // SW-FE-002: CSS-based animation via useEffect (not TypeAnimation library)
+  useEffect(() => {
+    if (prefersReducedMotion) return;
+
+    const totalDuration = HERO_ANIMATIONS.taglineSequence.reduce((sum, item, idx) => {
+      return idx % 2 === 1 ? sum + (item as number) : sum;
+    }, 0);
+
+    const interval = setInterval(() => {
+      setAnimationIndex((prev) => (prev + 1) % taglineTexts.length);
+    }, totalDuration / taglineTexts.length);
+
+    return () => clearInterval(interval);
+  }, [prefersReducedMotion, taglineTexts.length]);
 
   // SW-FE-001: Track hero view on mount (once per session)
   useEffect(() => {
     fire("hero_view");
   }, [fire]);
 
-  // SW-FE-001: Secure navigation with validation, rate limiting, and telemetry
+  // SW-FE-002: Optimized navigation handler with event delegation
   const handleTrackedNavigation = useCallback(
     (event: "continue_game_click" | "multiplayer_click" | "join_room_click" | "challenge_ai_click", destination: string) => {
-      // Track CTA click before navigation attempt
       fire("hero_cta_click");
 
-      // Navigate with security validation
       const navError = navigateSafely(event, destination);
       if (navError) {
-        // Determine error type for telemetry
         let errorType: "navigation" | "rate_limit" | "validation" = "validation";
         if (navError.message.includes("wait before clicking")) {
           errorType = "rate_limit";
@@ -290,10 +466,12 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
         }
 
         fireError(errorType === "rate_limit" ? "rate_limit_exceeded" : "validation_failed");
-        setError({ hasError: true, message: navError.message, type: errorType });
+        startTransition(() => {
+          setError({ hasError: true, message: navError.message, type: errorType });
+        });
       }
     },
-    [fire, fireError, navigateSafely],
+    [fire, fireError, navigateSafely, startTransition],
   );
 
   // SW-FE-001: Error state — show safe message when navigation fails
@@ -302,7 +480,9 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
       <HeroErrorDisplay
         error={error}
         onRetry={() => {
-          setError({ hasError: false, message: "" });
+          startTransition(() => {
+            setError({ hasError: false, message: "" });
+          });
           fire("hero_view");
         }}
       />
@@ -320,15 +500,16 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
       className={`z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 ${className || ""}`}
       style={{
         backgroundColor: HERO_COLORS.primary,
+        contain: "layout",
       }}
     >
-      {/* Background gradient — CSP-compliant pre-validated constant */}
+      {/* Background gradient — SW-FE-002: Cached as CSS variable */}
       <div
         aria-hidden="true"
         className="w-full h-full overflow-hidden bg-cover bg-center"
         style={{
           background: HERO_GRADIENTS.desktop,
-        }}
+      }}
       />
 
       {/* Large Background TYCOON Text — decorative only */}
@@ -351,23 +532,20 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
           </p>
         </div>
 
-        {/* Animated Tagline */}
+        {/* SW-FE-002: CSS-based Animated Tagline (replaces TypeAnimation) */}
         <div
           aria-live="polite"
           aria-atomic="true"
           className="flex min-h-[30px] md:min-h-[44px] lg:min-h-[56px] justify-center items-center md:gap-6 gap-3 mt-4 md:mt-6 lg:mt-4"
         >
-          <TypeAnimation
-            sequence={HERO_ANIMATIONS.taglineSequence}
-            wrapper="span"
-            speed={HERO_ANIMATIONS.typeSpeed}
-            repeat={prefersReducedMotion ? 1 : Infinity}
-            preRenderFirstString
-            className="font-orbitron lg:text-[40px] md:text-[30px] text-[20px] font-[700] text-center block"
+          <span
+            className="font-orbitron lg:text-[40px] md:text-[30px] text-[20px] font-[700] text-center block transition-opacity duration-300"
             style={{
               color: HERO_COLORS.text,
             }}
-          />
+          >
+            {currentTagline}
+          </span>
         </div>
 
         {/* Main Title — single h1 on this page */}
@@ -390,7 +568,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
           </span>
         </h1>
 
-        {/* Description + Animated Sub-text */}
+        {/* Description + SW-FE-002: CSS-based Animated Sub-text */}
         <div
           className="w-full px-4 md:w-[70%] lg:w-[55%] text-center -tracking-[2%]"
           style={{
@@ -402,17 +580,14 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
             aria-atomic="true"
             className="min-h-[30px] md:min-h-[44px] lg:min-h-[56px]"
           >
-            <TypeAnimation
-              sequence={HERO_ANIMATIONS.descriptionSequence}
-              wrapper="span"
-              speed={HERO_ANIMATIONS.subSpeed}
-              repeat={prefersReducedMotion ? 1 : Infinity}
-              preRenderFirstString
-              className="font-orbitron lg:text-[40px] md:text-[30px] text-[20px] font-[700] text-center block"
+            <span
+              className="font-orbitron lg:text-[40px] md:text-[30px] text-[20px] font-[700] text-center block transition-opacity duration-300"
               style={{
                 color: HERO_COLORS.text,
               }}
-            />
+            >
+              {currentDescription}
+            </span>
           </div>
           <p className="font-dmSans font-[400] md:text-[18px] text-[14px] mt-4">
             Step into Tycoon — the Web3 twist on the classic game of strategy,
@@ -422,122 +597,11 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
           </p>
         </div>
 
-        {/* Action Buttons */}
-        <div className="z-1 w-full flex flex-col justify-center items-center mt-6 gap-4">
-          {/* Continue Game */}
-          <button
-            data-testid="hero-primary-cta"
-            aria-label="Continue game"
-            onClick={() => handleTrackedNavigation("continue_game_click", "/game-settings")}
-            className="relative group w-[300px] h-[56px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-105"
-          >
-            <svg
-              aria-hidden="true"
-              width="300"
-              height="56"
-              viewBox="0 0 300 56"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              className={`absolute top-0 left-0 w-full h-full transform scale-x-[-1] ${!prefersReducedMotion ? "group-hover:animate-pulse" : ""}`}
-            >
-              <path
-                d="M12 1H288C293.373 1 296 7.85486 293.601 12.5127L270.167 54.5127C269.151 56.0646 267.42 57 265.565 57H12C8.96244 57 6.5 54.5376 6.5 51.5V9.5C6.5 6.46243 8.96243 4 12 4Z"
-                fill="#00F0FF"
-                stroke="#0E282A"
-                strokeWidth={2}
-              />
-            </svg>
-            <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[20px] font-orbitron font-[700] z-2">
-              <Gamepad2 className="mr-2 w-7 h-7" />
-              Continue Game
-            </span>
-          </button>
-
-          {/* Multiplayer */}
-          <button
-            aria-label="Multiplayer"
-            onClick={() => handleTrackedNavigation("multiplayer_click", "/game-settings")}
-            className="relative group w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
-          >
-            <svg
-              aria-hidden="true"
-              width="227"
-              height="40"
-              viewBox="0 0 227 40"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              className={`absolute top-0 left-0 w-full h-full transform scale-x-[-1] scale-y-[-1] ${!prefersReducedMotion ? "group-hover:stroke-[#00F0FF] transition-all duration-300" : ""}`}
-            >
-              <path
-                d="M6 1H221C225.373 1 227.996 5.85486 225.601 9.5127L207.167 37.5127C206.151 39.0646 204.42 40 202.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
-                fill="#003B3E"
-                stroke="#003B3E"
-                strokeWidth={1}
-                className={`${!prefersReducedMotion ? "group-hover:stroke-[#00F0FF] transition-all duration-300" : ""}`}
-              />
-            </svg>
-            <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-2">
-              <Gamepad2 className="mr-1.5 w-[16px] h-[16px]" />
-              Multiplayer
-            </span>
-          </button>
-
-          {/* Join Room */}
-          <button
-            aria-label="Join room"
-            onClick={() => handleTrackedNavigation("join_room_click", "/join-room")}
-            className="relative group w-[140px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
-          >
-            <svg
-              aria-hidden="true"
-              width="140"
-              height="40"
-              viewBox="0 0 140 40"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              className={`absolute top-0 left-0 w-full h-full ${!prefersReducedMotion ? "group-hover:stroke-[#00F0FF] transition-all duration-300" : ""}`}
-            >
-              <path
-                d="M6 1H134C138.373 1 140.996 5.85486 138.601 9.5127L120.167 37.5127C119.151 39.0646 117.42 40 115.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
-                fill="#0E1415"
-                stroke="#003B3E"
-                strokeWidth={1}
-                className={`${!prefersReducedMotion ? "group-hover:stroke-[#00F0FF] transition-all duration-300" : ""}`}
-              />
-            </svg>
-            <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-[#0FF0FC] capitalize text-[12px] font-dmSans font-medium z-2">
-              <Dices className="mr-1.5 w-[16px] h-[16px]" />
-              Join Room
-            </span>
-          </button>
-
-          {/* Challenge AI */}
-          <button
-            aria-label="Challenge AI"
-            onClick={() => handleTrackedNavigation("challenge_ai_click", "/play-ai")}
-            className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform duration-300 group-hover:scale-105"
-          >
-            <svg
-              aria-hidden="true"
-              width="260"
-              height="52"
-              viewBox="0 0 260 52"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              className={`absolute top-0 left-0 w-full h-full transform scale-x-[-1] ${!prefersReducedMotion ? "group-hover:animate-pulse" : ""}`}
-            >
-              <path
-                d="M10 1H250C254.373 1 256.996 6.85486 254.601 10.5127L236.167 49.5127C235.151 51.0646 233.42 52 231.565 52H10C6.96244 52 4.5 49.5376 4.5 46.5V9.5C4.5 6.46243 6.96243 4 10 4Z"
-                fill="#00F0FF"
-                stroke="#0E282A"
-                strokeWidth={1}
-              />
-            </svg>
-            <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-[#010F10] uppercase text-[16px] -tracking-[2%] font-orbitron font-[700] z-2">
-              Challenge AI!
-            </span>
-          </button>
-        </div>
+        {/* Action Buttons — SW-FE-002: Memoized to prevent re-renders */}
+        <HeroButtonsContainer 
+          onNavigate={handleTrackedNavigation}
+          prefersReducedMotion={prefersReducedMotion}
+        />
       </div>
     </section>
   );
