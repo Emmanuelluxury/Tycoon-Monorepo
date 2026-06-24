@@ -16,11 +16,20 @@ function usePrefersReducedMotion(): boolean {
     if (typeof window === "undefined") return;
 
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (!mq) {
+      return;
+    }
+    
     setReduced(mq.matches);
 
-    const onChange = () => setReduced(mq.matches);
+    const onChange = (event: MediaQueryListEvent): void => {
+      setReduced(event.matches);
+    };
+    
     mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
+    return () => {
+      mq.removeEventListener("change", onChange);
+    };
   }, []);
 
   return reduced;
@@ -50,8 +59,23 @@ export default function HeroSectionMobile({ className }: HeroSectionMobileProps)
   const router = useRouter();
   const prefersReducedMotion = usePrefersReducedMotion();
 
+  // SW-FE-001: Announce hero section to screen readers on mount
+  useEffect(() => {
+    const announcement = document.createElement("div");
+    announcement.setAttribute("role", "status");
+    announcement.setAttribute("aria-live", "polite");
+    announcement.setAttribute("aria-atomic", "true");
+    announcement.className = "sr-only";
+    announcement.textContent = "Hero section loaded. Use Tab to navigate through game options.";
+    document.body.appendChild(announcement);
+
+    return () => {
+      document.body.removeChild(announcement);
+    };
+  }, []);
+
   const ctaBase =
-    "min-h-[48px] min-w-[48px] flex items-center justify-center gap-2 font-orbitron font-[700] rounded-xl transition-transform active:scale-95 touch-manipulation";
+    "min-h-[48px] min-w-[48px] flex items-center justify-center gap-2 font-orbitron font-[700] rounded-xl transition-transform active:scale-95 touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#010F10]";
 
   const handleTrackedNavigation = (
     event: "continue_game_click" | "multiplayer_click" | "join_room_click" | "play_ai_click",
@@ -66,7 +90,9 @@ export default function HeroSectionMobile({ className }: HeroSectionMobileProps)
   }
 
   return (
-    <section className={`z-0 w-full min-h-[calc(100dvh-87px)] relative overflow-x-hidden py-8 px-4 bg-[#010F10] ${className || ""}`}>
+    <section 
+      aria-label="Hero"
+      className={`z-0 w-full min-h-[calc(100dvh-87px)] relative overflow-x-hidden py-8 px-4 bg-[#010F10] ${className ?? ""}`}>
       {/* Simplified background: flat gradient */}
       <div
         className="absolute inset-0 opacity-60"
@@ -74,7 +100,7 @@ export default function HeroSectionMobile({ className }: HeroSectionMobileProps)
           background:
             "linear-gradient(180deg, #010F10 0%, #0a1f21 40%, #010F10 100%)",
         }}
-        aria-hidden
+        aria-hidden="true"
       />
 
       <div className="relative z-10 mx-auto flex max-w-md flex-col items-center gap-6 text-center">

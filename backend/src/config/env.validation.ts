@@ -89,6 +89,23 @@ export const validationSchema = Joi.object({
     then: Joi.string().min(16).required(),
     otherwise: Joi.string().allow('').optional(),
   }),
+  WEBHOOK_SECRET: Joi.when('NODE_ENV', {
+    is: isProd,
+    then: Joi.string().min(16).required(),
+    otherwise: Joi.string().default('dev-only-insecure-secret-change-me'),
+  }),
+  WEBHOOK_SIGNATURE_TOLERANCE_SECONDS: Joi.number()
+    .integer()
+    .min(10)
+    .max(3600)
+    .default(300)
+    .description('Tolerance window (seconds) for webhook signature timestamp validation'),
+  WEBHOOK_IDEMPOTENCY_TTL_DAYS: Joi.number()
+    .integer()
+    .min(1)
+    .max(365)
+    .default(7)
+    .description('Time-to-live (days) for webhook idempotency keys in Redis'),
 
   // ─── Reconciliation ─────────────────────────────────────────────────────────
   RECONCILIATION_DRY_RUN: Joi.boolean()
