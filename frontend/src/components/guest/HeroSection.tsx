@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState, useCallback } from "react";
-import { Dices, Gamepad2 } from "lucide-react";
+import { Dices, Gamepad2, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
 import { useHeroTelemetry } from "@/hooks/useHeroTelemetry";
 import { useHeroNavigation } from "@/hooks/useHeroNavigation";
@@ -20,6 +20,12 @@ interface HeroSectionProps {
 interface HeroErrorState {
   hasError: boolean;
   message: string;
+  type?: "navigation" | "rate_limit" | "validation";
+}
+
+interface HeroEmptyState {
+  isEmpty: boolean;
+  reason?: "offline" | "loading" | "maintenance";
 }
 
 function usePrefersReducedMotion(): boolean {
@@ -57,6 +63,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }): React.ReactElem
   const { navigateSafely } = useHeroNavigation();
   const prefersReducedMotion = usePrefersReducedMotion();
   const [error, setError] = useState<HeroErrorState>({ hasError: false, message: "" });
+  const [empty, setEmpty] = useState<HeroEmptyState>({ isEmpty: false });
 
   // SW-FE-001: Track hero view on mount (once per session)
   useEffect(() => {
@@ -135,6 +142,11 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }): React.ReactElem
         </div>
       </section>
     );
+  }
+
+  // SW-FE-001: Empty state — show when service is unavailable
+  if (empty.isEmpty && empty.reason) {
+    return <HeroEmptyState reason={empty.reason} />;
   }
 
   return (
