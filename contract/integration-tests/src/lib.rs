@@ -20,3 +20,6 @@ mod security_review_checklist;
 #[cfg(test)]
 mod simulation_scenarios;
 mod token_reward_flow;
+// SW-CT-038: unit / integration coverage
+#[cfg(test)]
+mod unit_coverage;
