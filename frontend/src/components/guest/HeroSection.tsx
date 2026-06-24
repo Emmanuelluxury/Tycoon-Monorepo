@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState, useCallback } from "react";
-import { Dices, Gamepad2 } from "lucide-react";
+import { Dices, Gamepad2, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
 import { useHeroTelemetry } from "@/hooks/useHeroTelemetry";
 import { useHeroNavigation } from "@/hooks/useHeroNavigation";
@@ -20,6 +20,12 @@ interface HeroSectionProps {
 interface HeroErrorState {
   hasError: boolean;
   message: string;
+  type?: "navigation" | "rate_limit" | "validation";
+}
+
+interface HeroEmptyState {
+  isEmpty: boolean;
+  reason?: "offline" | "loading" | "maintenance";
 }
 
 function usePrefersReducedMotion(): boolean {
@@ -39,11 +45,227 @@ function usePrefersReducedMotion(): boolean {
   return reduced;
 }
 
+/**
+ * Hero Error State Component
+ * SW-FE-001: Displays error with retry and home navigation options
+ */
+function HeroErrorDisplay({
+  error,
+  onRetry,
+}: {
+  error: HeroErrorState;
+  onRetry: () => void;
+}) {
+  const [showDetails, setShowDetails] = useState(false);
+
+  return (
+    <section
+      aria-label="Hero Error"
+      role="alert"
+      aria-live="assertive"
+      className="z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 flex items-center justify-center"
+      style={{
+        backgroundColor: HERO_COLORS.primary,
+        background: HERO_GRADIENTS.desktop,
+      }}
+    >
+      <div className="max-w-md w-full px-4 space-y-6">
+        {/* Error Icon */}
+        <div className="flex justify-center">
+          <div className="relative">
+            <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center">
+              <AlertCircle className="w-10 h-10 text-red-500" aria-hidden="true" />
+            </div>
+            <div className="absolute inset-0 w-20 h-20 rounded-full bg-red-500/20 blur-xl" />
+          </div>
+        </div>
+
+        {/* Error Message */}
+        <div className="text-center space-y-3">
+          <p
+            className="font-orbitron text-[24px] md:text-[28px] font-[700]"
+            style={{ color: HERO_COLORS.accent }}
+          >
+            Something went wrong
+          </p>
+          <p
+            className="font-dmSans text-[14px] md:text-[16px] leading-relaxed"
+            style={{ color: HERO_COLORS.textSubtle }}
+          >
+            {error.message}
+          </p>
+
+          {/* Optional Details Toggle */}
+          {error.type && (
+            <button
+              onClick={() => setShowDetails(!showDetails)}
+              className="inline-flex items-center gap-2 text-xs mt-3 opacity-60 hover:opacity-100 transition-opacity"
+              style={{ color: HERO_COLORS.accent }}
+            >
+              {showDetails ? <EyeOff size={14} /> : <Eye size={14} />}
+              {showDetails ? "Hide" : "Show"} error code
+            </button>
+          )}
+
+          {showDetails && error.type && (
+            <p
+              className="font-mono text-xs p-2 rounded bg-black/20 mt-2"
+              style={{ color: HERO_COLORS.accent }}
+            >
+              {error.type}
+            </p>
+          )}
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex flex-col gap-3 pt-4">
+          <button
+            onClick={onRetry}
+            className="w-full px-6 py-3 rounded-lg font-orbitron font-[700] text-[14px] transition-all hover:opacity-90 active:scale-95"
+            style={{
+              backgroundColor: HERO_COLORS.accent,
+              color: HERO_COLORS.primary,
+            }}
+            aria-label="Try again"
+          >
+            Try Again
+          </button>
+          <button
+            onClick={() => (window.location.href = "/")}
+            className="w-full px-6 py-3 rounded-lg font-orbitron font-[700] text-[14px] transition-all hover:opacity-90 active:scale-95 border-2"
+            style={{
+              borderColor: HERO_COLORS.border,
+              color: HERO_COLORS.text,
+              backgroundColor: "transparent",
+            }}
+            aria-label="Go to home"
+          >
+            Go Home
+          </button>
+        </div>
+
+        {/* Support Link */}
+        <p className="text-center text-xs" style={{ color: HERO_COLORS.textSubtle }}>
+          Need help?{" "}
+          <a
+            href="/support"
+            className="underline transition-opacity hover:opacity-70"
+            style={{ color: HERO_COLORS.accent }}
+          >
+            Contact support
+          </a>
+        </p>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Hero Empty State Component
+ * SW-FE-001: Displays when no game is available or service is unavailable
+ */
+function HeroEmptyState({
+  reason = "offline",
+}: {
+  reason?: "offline" | "loading" | "maintenance";
+}) {
+  const messages = {
+    offline: {
+      title: "Offline",
+      description: "Check your connection and try again.",
+      hint: "Make sure you're connected to the internet.",
+    },
+    loading: {
+      title: "Loading...",
+      description: "Getting things ready for you.",
+      hint: "This usually takes a moment.",
+    },
+    maintenance: {
+      title: "Under Maintenance",
+      description: "We're making improvements to the game.",
+      hint: "Check back soon!",
+    },
+  };
+
+  const config = messages[reason];
+
+  return (
+    <section
+      aria-label="Hero Unavailable"
+      role="status"
+      aria-busy={reason === "loading"}
+      className="z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 flex items-center justify-center"
+      style={{
+        backgroundColor: HERO_COLORS.primary,
+        background: HERO_GRADIENTS.desktop,
+      }}
+    >
+      <div className="max-w-md w-full px-4 space-y-6 text-center">
+        {/* Loading/Status Indicator */}
+        {reason === "loading" && (
+          <div className="flex justify-center gap-2">
+            <div
+              className="w-3 h-3 rounded-full animate-pulse"
+              style={{ backgroundColor: HERO_COLORS.accent, animationDelay: "0ms" }}
+            />
+            <div
+              className="w-3 h-3 rounded-full animate-pulse"
+              style={{ backgroundColor: HERO_COLORS.accent, animationDelay: "150ms" }}
+            />
+            <div
+              className="w-3 h-3 rounded-full animate-pulse"
+              style={{ backgroundColor: HERO_COLORS.accent, animationDelay: "300ms" }}
+            />
+          </div>
+        )}
+
+        {/* Message */}
+        <div className="space-y-2">
+          <p
+            className="font-orbitron text-[24px] md:text-[28px] font-[700]"
+            style={{ color: HERO_COLORS.accent }}
+          >
+            {config.title}
+          </p>
+          <p
+            className="font-dmSans text-[14px] md:text-[16px] leading-relaxed"
+            style={{ color: HERO_COLORS.textSubtle }}
+          >
+            {config.description}
+          </p>
+          <p
+            className="text-xs"
+            style={{ color: HERO_COLORS.textSubtle, opacity: 0.7 }}
+          >
+            {config.hint}
+          </p>
+        </div>
+
+        {/* Action Button */}
+        {reason !== "loading" && (
+          <button
+            onClick={() => window.location.reload()}
+            className="w-full px-6 py-3 rounded-lg font-orbitron font-[700] text-[14px] transition-all hover:opacity-90 active:scale-95 mt-6"
+            style={{
+              backgroundColor: HERO_COLORS.accent,
+              color: HERO_COLORS.primary,
+            }}
+            aria-label="Reload page"
+          >
+            Reload
+          </button>
+        )}
+      </div>
+    </section>
+  );
+}
+
 const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
   const { fire, fireError } = useHeroTelemetry();
   const { navigateSafely } = useHeroNavigation();
   const prefersReducedMotion = usePrefersReducedMotion();
   const [error, setError] = useState<HeroErrorState>({ hasError: false, message: "" });
+  const [empty, setEmpty] = useState<HeroEmptyState>({ isEmpty: false });
 
   // SW-FE-001: Track hero view on mount (once per session)
   useEffect(() => {
@@ -59,14 +281,16 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
       // Navigate with security validation
       const navError = navigateSafely(event, destination);
       if (navError) {
-        // Track error type for telemetry
-        if (event === "join_room_click" || event === "challenge_ai_click") {
-          // If rate limit, track as rate_limit_exceeded
-          fireError("rate_limit_exceeded");
-        } else {
-          fireError("validation_failed");
+        // Determine error type for telemetry
+        let errorType: "navigation" | "rate_limit" | "validation" = "validation";
+        if (navError.message.includes("wait before clicking")) {
+          errorType = "rate_limit";
+        } else if (navError.message.includes("Invalid destination")) {
+          errorType = "navigation";
         }
-        setError(navError);
+
+        fireError(errorType === "rate_limit" ? "rate_limit_exceeded" : "validation_failed");
+        setError({ hasError: true, message: navError.message, type: errorType });
       }
     },
     [fire, fireError, navigateSafely],
@@ -75,48 +299,19 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
   // SW-FE-001: Error state — show safe message when navigation fails
   if (error.hasError) {
     return (
-      <section
-        aria-label="Hero"
-        role="alert"
-        className={`z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 flex items-center justify-center ${className || ""}`}
-        style={{
-          backgroundColor: HERO_COLORS.primary,
+      <HeroErrorDisplay
+        error={error}
+        onRetry={() => {
+          setError({ hasError: false, message: "" });
+          fire("hero_view");
         }}
-      >
-        <div className="text-center px-4">
-          <p
-            className="font-orbitron text-[20px] md:text-[28px] font-[700] mb-4"
-            style={{
-              color: HERO_COLORS.accent,
-            }}
-          >
-            Something went wrong
-          </p>
-          <p
-            className="font-dmSans text-[14px] md:text-[16px] mb-6"
-            style={{
-              color: HERO_COLORS.text,
-            }}
-          >
-            {error.message}
-          </p>
-          <button
-            onClick={() => {
-              setError({ hasError: false, message: "" });
-              fire("hero_view");
-            }}
-            className="font-orbitron px-6 py-3 rounded-lg font-[700] text-[14px] hover:opacity-90 transition-opacity"
-            style={{
-              backgroundColor: HERO_COLORS.accent,
-              color: HERO_COLORS.primary,
-            }}
-            aria-label="Try again"
-          >
-            Try Again
-          </button>
-        </div>
-      </section>
+      />
     );
+  }
+
+  // SW-FE-001: Empty state — show when service is unavailable
+  if (empty.isEmpty && empty.reason) {
+    return <HeroEmptyState reason={empty.reason} />;
   }
 
   return (
