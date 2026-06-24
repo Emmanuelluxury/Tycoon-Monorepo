@@ -55,21 +55,6 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }): React.ReactElem
     fire("hero_view");
   }, [fire]);
 
-  // SW-FE-001: Announce hero section to screen readers on mount
-  useEffect(() => {
-    const announcement = document.createElement("div");
-    announcement.setAttribute("role", "status");
-    announcement.setAttribute("aria-live", "polite");
-    announcement.setAttribute("aria-atomic", "true");
-    announcement.className = "sr-only";
-    announcement.textContent = "Hero section loaded. Use Tab to navigate through game options.";
-    document.body.appendChild(announcement);
-
-    return () => {
-      document.body.removeChild(announcement);
-    };
-  }, []);
-
   // SW-FE-005: Error boundary for navigation failures
   const handleTrackedNavigation = useCallback(
     (event: "continue_game_click" | "multiplayer_click" | "join_room_click" | "challenge_ai_click", destination: string): void => {
@@ -109,7 +94,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }): React.ReactElem
               setError({ hasError: false, message: "" });
               fire("hero_view");
             }}
-            className="font-orbitron text-[#010F10] bg-[#00F0FF] px-6 py-3 rounded-lg font-[700] text-[14px] hover:opacity-90 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[#010F10] focus-visible:ring-[#00F0FF]"
+            className="font-orbitron text-[#010F10] bg-[#00F0FF] px-6 py-3 rounded-lg font-[700] text-[14px] hover:opacity-90 transition-opacity"
             aria-label="Try again"
           >
             Try Again
@@ -233,7 +218,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }): React.ReactElem
             data-testid="hero-primary-cta"
             aria-label="Continue game"
             onClick={() => handleTrackedNavigation("continue_game_click", "/game-settings")}
-            className="relative group w-[300px] h-[56px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#010F10] rounded-md"
+            className="relative group w-[300px] h-[56px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-105"
           >
             <svg
               aria-hidden="true"
@@ -261,7 +246,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }): React.ReactElem
           <button
             aria-label="Multiplayer"
             onClick={() => handleTrackedNavigation("multiplayer_click", "/game-settings")}
-            className="relative group w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#010F10] rounded-md"
+            className="relative group w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
           >
             <svg
               aria-hidden="true"
@@ -290,7 +275,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }): React.ReactElem
           <button
             aria-label="Join room"
             onClick={() => handleTrackedNavigation("join_room_click", "/join-room")}
-            className="relative group w-[140px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#010F10] rounded-md"
+            className="relative group w-[140px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
           >
             <svg
               aria-hidden="true"
@@ -319,7 +304,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }): React.ReactElem
           <button
             aria-label="Challenge AI"
             onClick={() => handleTrackedNavigation("challenge_ai_click", "/play-ai")}
-            className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform duration-300 group-hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#010F10] rounded-md"
+            className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform duration-300 group-hover:scale-105"
           >
             <svg
               aria-hidden="true"

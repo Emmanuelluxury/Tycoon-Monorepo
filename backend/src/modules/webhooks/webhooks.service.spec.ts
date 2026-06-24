@@ -248,113 +248,17 @@ describe('WebhooksService', () => {
     });
   });
 
-  describe('Configuration - Signature Tolerance & Idempotency TTL (SW-BE-029)', () => {
-    it('should respect WEBHOOK_SIGNATURE_TOLERANCE_SECONDS from config', async () => {
-      const mockConfigService = {
-        get: jest.fn((key: string, defaultValue?: any) => {
-          if (key === 'WEBHOOK_SECRET') return 'test_secret';
-          if (key === 'WEBHOOK_SIGNATURE_TOLERANCE_SECONDS') return 600; // 10 minutes
-          if (key === 'WEBHOOK_IDEMPOTENCY_TTL_DAYS') return 7;
-          return defaultValue;
-        }),
+  describe('listEvents', () => {
+    const buildQb = (data: any[], total: number) => {
+      const qb: any = {
+        orderBy: jest.fn().mockReturnThis(),
+        addOrderBy: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getManyAndCount: jest.fn().mockResolvedValue([data, total]),
       };
-
-      const mockRedisService = {
-        get: jest.fn(),
-        set: jest.fn(),
-      };
-
-      const module: TestingModule = await Test.createTestingModule({
-        providers: [
-          WebhooksService,
-          { provide: RedisService, useValue: mockRedisService },
-          { provide: WebhooksObservabilityService, useValue: mockObservability() },
-          { provide: WebhooksAuditService, useValue: mockAudit() },
-          { provide: getRepositoryToken(WebhookEvent), useValue: mockRepo() },
-          { provide: ConfigService, useValue: mockConfigService },
-        ],
-      }).compile();
-
-      const customService = module.get<WebhooksService>(WebhooksService);
-      const toleranceSeconds = (customService as any).toleranceSeconds;
-
-      expect(toleranceSeconds).toBe(600);
-    });
-
-    it('should respect WEBHOOK_IDEMPOTENCY_TTL_DAYS from config', async () => {
-      const mockConfigService = {
-        get: jest.fn((key: string, defaultValue?: any) => {
-          if (key === 'WEBHOOK_SECRET') return 'test_secret';
-          if (key === 'WEBHOOK_SIGNATURE_TOLERANCE_SECONDS') return 300;
-          if (key === 'WEBHOOK_IDEMPOTENCY_TTL_DAYS') return 30; // 30 days
-          return defaultValue;
-        }),
-      };
-
-      const mockRedisService = {
-        get: jest.fn(),
-        set: jest.fn(),
-      };
-
-      const module: TestingModule = await Test.createTestingModule({
-        providers: [
-          WebhooksService,
-          { provide: RedisService, useValue: mockRedisService },
-          { provide: WebhooksObservabilityService, useValue: mockObservability() },
-          { provide: WebhooksAuditService, useValue: mockAudit() },
-          { provide: getRepositoryToken(WebhookEvent), useValue: mockRepo() },
-          { provide: ConfigService, useValue: mockConfigService },
-        ],
-      }).compile();
-
-      const customService = module.get<WebhooksService>(WebhooksService);
-      const ttlDays = (customService as any).idempotencyTtlDays;
-
-      expect(ttlDays).toBe(30);
-    });
-
-    it('should use configurable TTL when setting idempotency key', async () => {
-      const mockConfigService = {
-        get: jest.fn((key: string, defaultValue?: any) => {
-          if (key === 'WEBHOOK_SECRET') return 'test_secret';
-          if (key === 'WEBHOOK_SIGNATURE_TOLERANCE_SECONDS') return 300;
-          if (key === 'WEBHOOK_IDEMPOTENCY_TTL_DAYS') return 14; // 14 days
-          return defaultValue;
-        }),
-      };
-
-      const mockRedisService = {
-        get: jest.fn().mockResolvedValue(null),
-        set: jest.fn().mockResolvedValue(undefined),
-      };
-
-      const mockRepoValue = mockRepo();
-      mockRepoValue.save.mockResolvedValue({});
-
-      const module: TestingModule = await Test.createTestingModule({
-        providers: [
-          WebhooksService,
-          { provide: RedisService, useValue: mockRedisService },
-          { provide: WebhooksObservabilityService, useValue: mockObservability() },
-          { provide: WebhooksAuditService, useValue: mockAudit() },
-          { provide: getRepositoryToken(WebhookEvent), useValue: mockRepoValue },
-          { provide: ConfigService, useValue: mockConfigService },
-        ],
-      }).compile();
-
-      const customService = module.get<WebhooksService>(WebhooksService);
-      const payload = { id: 'evt_456', type: 'test.event' };
-
-      await customService.processWebhook(payload, 'stripe');
-
-      // 14 days = 14 * 86400 = 1209600 seconds
-      expect(mockRedisService.set).toHaveBeenCalledWith(
-        'webhook:evt_456',
-        true,
-        1209600,
-      );
-    });
-  });
+      return qb;
+    };
 
     it('should return paginated events with default params', async () => {
       const events = [{ id: 1 }, { id: 2 }] as WebhookEvent[];
