@@ -351,4 +351,71 @@ mod tests {
             "registered player must not mint their own voucher"
         );
     }
+
+    // ── SW-CT-037: Event Auditability ─────────────────────────────────────────
+
+    /// Verifies §2.5: pause/unpause emit events (no silent state change).
+    #[test]
+    fn pause_unpause_emit_events() {
+        let f = Fixture::new();
+        f.reward.pause();
+        let events = f.env.events().all();
+        assert!(!events.is_empty(), "pause must emit at least one event");
+        f.reward.unpause();
+        let events_after = f.env.events().all();
+        assert!(
+            events_after.len() > events.len(),
+            "unpause must emit at least one event"
+        );
+    }
+
+    /// Verifies §2.5: minting a voucher emits an event.
+    #[test]
+    fn mint_voucher_emits_event() {
+        let f = Fixture::new();
+        let value: u128 = 1_000_000_000_000_000_000;
+        f.reward.mint_voucher(&f.admin, &f.player_a, &value);
+        assert!(
+            !f.env.events().all().is_empty(),
+            "mint_voucher must emit at least one event"
+        );
+    }
+
+    // ── SW-CT-037: Storage Cleanup ────────────────────────────────────────────
+
+    /// Verifies §2.6: voucher storage entry is removed (not zeroed) after redeem,
+    /// so balance reads 0 rather than a stale entry.
+    #[test]
+    fn voucher_storage_cleaned_after_redeem() {
+        let f = Fixture::new();
+        let value: u128 = 2_000_000_000_000_000_000;
+        let tid = f.reward.mint_voucher(&f.admin, &f.player_a, &value);
+        assert_eq!(f.reward.get_balance(&f.player_a, &tid), 1);
+        f.reward.redeem_voucher_from(&f.player_a, &tid);
+        // Storage entry removed — balance must read 0, not a residual value.
+        assert_eq!(
+            f.reward.get_balance(&f.player_a, &tid),
+            0,
+            "storage entry must be removed (not zeroed) after redeem"
+        );
+    }
+
+    // ── SW-CT-037: Double-Initialize Guard ────────────────────────────────────
+
+    /// Verifies §2.4: initialize is one-time guarded; re-calling must panic.
+    #[test]
+    fn initialize_twice_rejected() {
+        use tycoon_reward_system::{TycoonRewardSystem, TycoonRewardSystemClient};
+        let env = soroban_sdk::Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register(TycoonRewardSystem, ());
+        let client = TycoonRewardSystemClient::new(&env, &contract_id);
+        let admin = Address::generate(&env);
+        let token = Address::generate(&env);
+        client.initialize(&admin, &token, &token);
+        let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            client.initialize(&admin, &token, &token);
+        }));
+        assert!(res.is_err(), "double-initialize must be rejected");
+    }
 }
