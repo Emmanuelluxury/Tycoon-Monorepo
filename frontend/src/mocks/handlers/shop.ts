@@ -3,12 +3,27 @@ import { mockInventory, mockPurchase, mockShopItems } from '../fixtures/shop';
 
 const LIMIT = 20;
 
+const SHOP_ITEMS_ERROR = {
+  statusCode: 500,
+  message: 'Failed to load shop items',
+  error: 'Internal Server Error',
+};
+
 export const shopHandlers = [
   // GET /api/shop/items — paginated list
-  http.get(/\/api\/shop\/items(\?.*)?$/, () => {
+  http.get(/\/api\/shop\/items(\?.*)?$/, ({ request }) => {
+    const url = new URL(request.url);
+
+    if (url.searchParams.get('error') === 'true') {
+      return HttpResponse.json(SHOP_ITEMS_ERROR, { status: 500 });
+    }
+
+    const items =
+      url.searchParams.get('empty') === 'true' ? [] : mockShopItems;
+
     return HttpResponse.json({
-      data: mockShopItems,
-      total: mockShopItems.length,
+      data: items,
+      total: items.length,
       page: 1,
       limit: LIMIT,
     });

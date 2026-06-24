@@ -44,6 +44,10 @@ export function InventoryModal({ isOpen, onClose }: InventoryModalProps) {
       const response = await fetch('/api/shop/inventory');
       if (!response.ok) throw new Error('Failed to fetch inventory');
       const data = await response.json();
+      if (!Array.isArray(data)) {
+        setItems([]);
+        return;
+      }
       setItems(data);
     } catch (error) {
       console.error('Error fetching inventory:', error);

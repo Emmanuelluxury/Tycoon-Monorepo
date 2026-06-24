@@ -135,7 +135,6 @@ function GamePlayContent({
       <section
         id="game-board-region"
         aria-label="Game board area"
-        aria-busy={gameId === null ? undefined : true}
         className="w-full rounded-xl focus-within:ring-2 focus-within:ring-[var(--tycoon-accent)] focus-within:ring-offset-2 focus-within:ring-offset-[var(--tycoon-bg)] [&_*:focus-visible]:outline-none [&_*:focus-visible]:ring-2 [&_*:focus-visible]:ring-[var(--tycoon-accent)] [&_*:focus-visible]:ring-offset-2"
       >
         <GameBoard />

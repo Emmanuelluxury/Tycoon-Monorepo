@@ -16,6 +16,7 @@ export interface BoardSquareProps {
   color: string;
   isFocused?: boolean;
   onFocus?: () => void;
+  squareRef?: (el: HTMLDivElement | null) => void;
 }
 
 export const BoardSquare: React.FC<BoardSquareProps> = ({
@@ -25,8 +26,13 @@ export const BoardSquare: React.FC<BoardSquareProps> = ({
   color,
   isFocused = false,
   onFocus,
+  squareRef,
 }) => {
   if (!name || !color) return null;
+
+  const positionLabel =
+    position !== undefined ? `, position ${position}` : '';
+  const ariaLabel = `${name} square${positionLabel}, type ${type}`;
   // Type-based styling
   const getSquareStyles = () => {
     const baseStyles = 'flex flex-col border-2 rounded overflow-hidden transition-all duration-200';
@@ -74,13 +80,15 @@ export const BoardSquare: React.FC<BoardSquareProps> = ({
 
   return (
     <div 
+      ref={squareRef}
       role="gridcell"
-      aria-label={`${name} square, position ${position}, type ${type}`}
+      aria-label={ariaLabel}
       tabIndex={isFocused ? 0 : -1}
       onFocus={onFocus}
       className={`${getSquareStyles()} w-20 h-28 sm:w-24 sm:h-32 md:w-28 md:h-36 ${isFocused ? 'ring-2 ring-blue-500 ring-inset' : ''}`}
       data-position={position}
       data-type={type}
+      data-square-type={type}
     >
       {/* Property color header - only for property type */}
       {type === 'property' && (
@@ -91,16 +99,16 @@ export const BoardSquare: React.FC<BoardSquareProps> = ({
       <div className={`flex flex-col flex-grow items-center justify-center text-center p-2 ${isDarkTheme ? 'pt-3' : ''}`}>
         {/* Type indicator icons */}
         {type === 'chance' && (
-          <div className="text-xl mb-1">?</div>
+          <div className="text-xl mb-1" aria-hidden="true">?</div>
         )}
         {type === 'community' && (
-          <div className="text-xl mb-1">📦</div>
+          <div className="text-xl mb-1" aria-hidden="true">📦</div>
         )}
         {type === 'tax' && (
-          <div className="text-xl mb-1">💰</div>
+          <div className="text-xl mb-1" aria-hidden="true">💰</div>
         )}
         {type === 'jail' && (
-          <div className="text-xl mb-1">🔒</div>
+          <div className="text-xl mb-1" aria-hidden="true">🔒</div>
         )}
 
         {/* Square name */}
