@@ -2,9 +2,16 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Dices, Gamepad2 } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
-import { useRouter } from "next/navigation";
 import { useHeroTelemetry } from "@/hooks/useHeroTelemetry";
-import { sanitizeError } from "@/lib/errors";
+import { useHeroNavigation } from "@/hooks/useHeroNavigation";
+import {
+  HERO_GRADIENTS,
+  HERO_COLORS,
+  HERO_SVG_PATHS,
+  HERO_ANIMATIONS,
+  HERO_ANALYTICS_EVENTS,
+  HERO_NAVIGATION,
+} from "@/lib/hero/constants";
 
 interface HeroSectionProps {
   className?: string | undefined;
@@ -47,6 +54,7 @@ const subSpeed = 30;
 const HeroSection: React.FC<HeroSectionProps> = ({ className }): React.ReactElement => {
   const router = useRouter();
   const { fire } = useHeroTelemetry();
+  const { navigateSafely } = useHeroNavigation();
   const prefersReducedMotion = usePrefersReducedMotion();
   const [error, setError] = useState<HeroErrorState>({ hasError: false, message: "" });
 
@@ -86,10 +94,10 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }): React.ReactElem
         }
       }
     },
-    [fire, router],
+    [fire, navigateSafely],
   );
 
-  // SW-FE-005: Empty state — show a friendly message when there's no content to display
+  // SW-FE-001: Error state — show safe message when navigation fails
   if (error.hasError) {
     return (
       <section
@@ -98,10 +106,20 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }): React.ReactElem
         className={`z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 bg-[#010F10] flex items-center justify-center ${className ?? ""}`}
       >
         <div className="text-center px-4">
-          <p className="font-orbitron text-[#00F0FF] text-[20px] md:text-[28px] font-[700] mb-4">
+          <p
+            className="font-orbitron text-[20px] md:text-[28px] font-[700] mb-4"
+            style={{
+              color: HERO_COLORS.accent,
+            }}
+          >
             Something went wrong
           </p>
-          <p className="font-dmSans text-[#F0F7F7] text-[14px] md:text-[16px] mb-6">
+          <p
+            className="font-dmSans text-[14px] md:text-[16px] mb-6"
+            style={{
+              color: HERO_COLORS.text,
+            }}
+          >
             {error.message}
           </p>
           <button
@@ -124,12 +142,12 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }): React.ReactElem
       aria-label="Hero"
       className={`z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 bg-[#010F10] ${className ?? ""}`}
     >
-      {/* Background gradient */}
+      {/* Background gradient — CSP-compliant pre-validated constant */}
       <div
         aria-hidden="true"
         className="w-full h-full overflow-hidden bg-cover bg-center"
         style={{
-          background: "linear-gradient(135deg, #010F10 0%, #0a2a2d 50%, #010F10 100%)",
+          background: HERO_GRADIENTS.desktop,
         }}
       />
 
@@ -143,7 +161,12 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }): React.ReactElem
       <div className="absolute left-0 top-0 z-2 flex h-full w-full flex-col items-center gap-1 bg-transparent lg:justify-center">
         {/* Welcome Message */}
         <div className="mt-20 md:mt-28 lg:mt-0">
-          <p className="font-orbitron lg:text-[24px] md:text-[20px] text-[16px] font-[700] text-[#00F0FF] text-center">
+          <p
+            className="font-orbitron lg:text-[24px] md:text-[20px] text-[16px] font-[700] text-center"
+            style={{
+              color: HERO_COLORS.accent,
+            }}
+          >
             Welcome back, Player!
           </p>
         </div>
@@ -155,70 +178,63 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }): React.ReactElem
           className="flex min-h-[30px] md:min-h-[44px] lg:min-h-[56px] justify-center items-center md:gap-6 gap-3 mt-4 md:mt-6 lg:mt-4"
         >
           <TypeAnimation
-            sequence={[
-              "Conquer",
-              1200,
-              "Conquer • Build",
-              1200,
-              "Conquer • Build • Trade On",
-              1800,
-              "Play Solo vs AI",
-              2000,
-              "Conquer • Build",
-              1000,
-              "Conquer",
-              1000,
-            ]}
+            sequence={HERO_ANIMATIONS.taglineSequence}
             wrapper="span"
-            speed={typeSpeed}
+            speed={HERO_ANIMATIONS.typeSpeed}
             repeat={prefersReducedMotion ? 1 : Infinity}
             preRenderFirstString
-            className="font-orbitron lg:text-[40px] md:text-[30px] text-[20px] font-[700] text-[#F0F7F7] text-center block"
+            className="font-orbitron lg:text-[40px] md:text-[30px] text-[20px] font-[700] text-center block"
+            style={{
+              color: HERO_COLORS.text,
+            }}
           />
         </div>
 
         {/* Main Title — single h1 on this page */}
         <h1
           data-testid="hero-main-title"
-          className="block-text font-[900] font-orbitron lg:text-[116px] md:text-[98px] text-[54px] lg:leading-[120px] md:leading-[100px] leading-[60px] tracking-[-0.02em] uppercase text-[#17ffff] relative"
+          className="block-text font-[900] font-orbitron lg:text-[116px] md:text-[98px] text-[54px] lg:leading-[120px] md:leading-[100px] leading-[60px] tracking-[-0.02em] uppercase relative"
+          style={{
+            color: HERO_COLORS.accentAlt,
+          }}
         >
           TYCOON
           <span
             aria-hidden="true"
-            className={`absolute top-0 left-[69%] text-[#0FF0FC] font-dmSans font-[700] md:text-[27px] text-[18px] rotate-12 ${!prefersReducedMotion ? "animate-pulse" : ""}`}
+            className={`absolute top-0 left-[69%] font-dmSans font-[700] md:text-[27px] text-[18px] rotate-12 ${!prefersReducedMotion ? "animate-pulse" : ""}`}
+            style={{
+              color: HERO_COLORS.accent,
+            }}
           >
             ?
           </span>
         </h1>
 
         {/* Description + Animated Sub-text */}
-        <div className="w-full px-4 md:w-[70%] lg:w-[55%] text-center text-[#F0F7F7] -tracking-[2%]">
+        <div
+          className="w-full px-4 md:w-[70%] lg:w-[55%] text-center -tracking-[2%]"
+          style={{
+            color: HERO_COLORS.text,
+          }}
+        >
           <div
             aria-live="polite"
             aria-atomic="true"
             className="min-h-[30px] md:min-h-[44px] lg:min-h-[56px]"
           >
             <TypeAnimation
-              sequence={[
-                "Roll the dice",
-                2000,
-                "Buy properties",
-                2000,
-                "Collect rent",
-                2000,
-                "Play against AI opponents",
-                2200,
-                "Become the top tycoon",
-                2000,
-              ]}
+              sequence={HERO_ANIMATIONS.descriptionSequence}
               wrapper="span"
-              speed={subSpeed}
+              speed={HERO_ANIMATIONS.subSpeed}
               repeat={prefersReducedMotion ? 1 : Infinity}
               preRenderFirstString
-              className="font-orbitron lg:text-[40px] md:text-[30px] text-[20px] font-[700] text-[#F0F7F7] text-center block"
+              className="font-orbitron lg:text-[40px] md:text-[30px] text-[20px] font-[700] text-center block"
+              style={{
+                color: HERO_COLORS.text,
+              }}
             />
           </div>
-          <p className="font-dmSans font-[400] md:text-[18px] text-[14px] text-[#F0F7F7] mt-4">
+          <p className="font-dmSans font-[400] md:text-[18px] text-[14px] mt-4">
             Step into Tycoon — the Web3 twist on the classic game of strategy,
             ownership, and fortune. Play solo against AI, compete in multiplayer
             rooms, collect tokens, complete quests, and become the ultimate
