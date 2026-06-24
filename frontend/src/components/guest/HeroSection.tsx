@@ -14,7 +14,7 @@ import {
 } from "@/lib/hero/constants";
 
 interface HeroSectionProps {
-  className?: string;
+  className?: string | undefined;
 }
 
 interface HeroErrorState {
@@ -29,18 +29,31 @@ function usePrefersReducedMotion(): boolean {
     if (typeof window === "undefined") return;
 
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (!mq) {
+      return;
+    }
+    
     setReduced(mq.matches);
 
-    const onChange = () => setReduced(mq.matches);
+    const onChange = (event: MediaQueryListEvent): void => {
+      setReduced(event.matches);
+    };
+    
     mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
+    return () => {
+      mq.removeEventListener("change", onChange);
+    };
   }, []);
 
   return reduced;
 }
 
-const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
-  const { fire, fireError } = useHeroTelemetry();
+const typeSpeed = 40;
+const subSpeed = 30;
+
+const HeroSection: React.FC<HeroSectionProps> = ({ className }): React.ReactElement => {
+  const router = useRouter();
+  const { fire } = useHeroTelemetry();
   const { navigateSafely } = useHeroNavigation();
   const prefersReducedMotion = usePrefersReducedMotion();
   const [error, setError] = useState<HeroErrorState>({ hasError: false, message: "" });
@@ -50,23 +63,35 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
     fire("hero_view");
   }, [fire]);
 
-  // SW-FE-001: Secure navigation with validation, rate limiting, and telemetry
-  const handleTrackedNavigation = useCallback(
-    (event: "continue_game_click" | "multiplayer_click" | "join_room_click" | "challenge_ai_click", destination: string) => {
-      // Track CTA click before navigation attempt
-      fire("hero_cta_click");
+  // SW-FE-001: Announce hero section to screen readers on mount
+  useEffect(() => {
+    const announcement = document.createElement("div");
+    announcement.setAttribute("role", "status");
+    announcement.setAttribute("aria-live", "polite");
+    announcement.setAttribute("aria-atomic", "true");
+    announcement.className = "sr-only";
+    announcement.textContent = "Hero section loaded. Use Tab to navigate through game options.";
+    document.body.appendChild(announcement);
 
-      // Navigate with security validation
-      const navError = navigateSafely(event, destination);
-      if (navError) {
-        // Track error type for telemetry
-        if (event === "join_room_click" || event === "challenge_ai_click") {
-          // If rate limit, track as rate_limit_exceeded
-          fireError("rate_limit_exceeded");
-        } else {
-          fireError("validation_failed");
+    return () => {
+      document.body.removeChild(announcement);
+    };
+  }, []);
+
+  // SW-FE-005: Error boundary for navigation failures
+  const handleTrackedNavigation = useCallback(
+    (event: "continue_game_click" | "multiplayer_click" | "join_room_click" | "challenge_ai_click", destination: string): void => {
+      try {
+        fire(event);
+        router.push(destination);
+      } catch (err: unknown) {
+        const sanitized = sanitizeError(err);
+        if (sanitized !== null) {
+          setError({ 
+            hasError: true, 
+            message: sanitized.userMessage ?? "An unexpected error occurred" 
+          });
         }
-        setError(navError);
       }
     },
     [fire, fireError, navigateSafely],
@@ -78,10 +103,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
       <section
         aria-label="Hero"
         role="alert"
-        className={`z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 flex items-center justify-center ${className || ""}`}
-        style={{
-          backgroundColor: HERO_COLORS.primary,
-        }}
+        className={`z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 bg-[#010F10] flex items-center justify-center ${className ?? ""}`}
       >
         <div className="text-center px-4">
           <p
@@ -105,11 +127,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
               setError({ hasError: false, message: "" });
               fire("hero_view");
             }}
-            className="font-orbitron px-6 py-3 rounded-lg font-[700] text-[14px] hover:opacity-90 transition-opacity"
-            style={{
-              backgroundColor: HERO_COLORS.accent,
-              color: HERO_COLORS.primary,
-            }}
+            className="font-orbitron text-[#010F10] bg-[#00F0FF] px-6 py-3 rounded-lg font-[700] text-[14px] hover:opacity-90 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[#010F10] focus-visible:ring-[#00F0FF]"
             aria-label="Try again"
           >
             Try Again
@@ -122,10 +140,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
   return (
     <section
       aria-label="Hero"
-      className={`z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 ${className || ""}`}
-      style={{
-        backgroundColor: HERO_COLORS.primary,
-      }}
+      className={`z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 bg-[#010F10] ${className ?? ""}`}
     >
       {/* Background gradient — CSP-compliant pre-validated constant */}
       <div
@@ -234,7 +249,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
             data-testid="hero-primary-cta"
             aria-label="Continue game"
             onClick={() => handleTrackedNavigation("continue_game_click", "/game-settings")}
-            className="relative group w-[300px] h-[56px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-105"
+            className="relative group w-[300px] h-[56px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#010F10] rounded-md"
           >
             <svg
               aria-hidden="true"
@@ -262,7 +277,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
           <button
             aria-label="Multiplayer"
             onClick={() => handleTrackedNavigation("multiplayer_click", "/game-settings")}
-            className="relative group w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
+            className="relative group w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#010F10] rounded-md"
           >
             <svg
               aria-hidden="true"
@@ -291,7 +306,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
           <button
             aria-label="Join room"
             onClick={() => handleTrackedNavigation("join_room_click", "/join-room")}
-            className="relative group w-[140px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
+            className="relative group w-[140px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#010F10] rounded-md"
           >
             <svg
               aria-hidden="true"
@@ -320,7 +335,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
           <button
             aria-label="Challenge AI"
             onClick={() => handleTrackedNavigation("challenge_ai_click", "/play-ai")}
-            className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform duration-300 group-hover:scale-105"
+            className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform duration-300 group-hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#010F10] rounded-md"
           >
             <svg
               aria-hidden="true"
