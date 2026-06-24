@@ -63,4 +63,17 @@ describe('GameBoard', () => {
     const board = screen.getByRole('grid', { name: /game board/i });
     await waitFor(() => expect(board).toHaveFocus());
   });
+
+  it('exposes aria-activedescendant when a square is focused', () => {
+    render(<GameBoard />);
+    const board = screen.getByRole('grid', { name: /game board/i });
+    fireEvent.focus(board);
+    expect(board).toHaveAttribute('aria-activedescendant', 'board-square-0');
+  });
+
+  it('opens shop overlay as an accessible dialog', () => {
+    render(<GameBoard />);
+    fireEvent.keyDown(document, { key: 's' });
+    expect(screen.getByRole('dialog', { name: /shop/i })).toBeDefined();
+  });
 });

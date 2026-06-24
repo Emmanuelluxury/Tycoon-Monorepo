@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { getNearContractId, getNearNetworkId } from "@/lib/near/config";
+import { getNearContractId, getNearNetworkId, isValidNearAccountId } from "@/lib/near/config";
 
 afterEach(() => {
   delete process.env.NEXT_PUBLIC_NEAR_NETWORK;
@@ -44,5 +44,25 @@ describe("getNearContractId", () => {
   it("trims whitespace from env value", () => {
     process.env.NEXT_PUBLIC_NEAR_CONTRACT_ID = "  my-contract.testnet  ";
     expect(getNearContractId("testnet")).toBe("my-contract.testnet");
+  });
+
+  it("falls back to default when env contract ID is invalid", () => {
+    process.env.NEXT_PUBLIC_NEAR_CONTRACT_ID = "INVALID!!";
+    expect(getNearContractId("testnet")).toBe("guest-book.testnet");
+  });
+});
+
+describe("isValidNearAccountId", () => {
+  it("accepts valid NEAR account IDs", () => {
+    expect(isValidNearAccountId("test.near")).toBe(true);
+    expect(isValidNearAccountId("guest-book.testnet")).toBe(true);
+    expect(isValidNearAccountId("alice")).toBe(true);
+  });
+
+  it("rejects empty, too short, or invalid characters", () => {
+    expect(isValidNearAccountId("")).toBe(false);
+    expect(isValidNearAccountId("a")).toBe(false);
+    expect(isValidNearAccountId("bad@account")).toBe(false);
+    expect(isValidNearAccountId("x".repeat(65))).toBe(false);
   });
 });

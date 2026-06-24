@@ -24,7 +24,7 @@ const nextConfig: NextConfig = {
       "style-src 'self' 'nonce-{nonce}'",
       "img-src 'self' data: https:",
       "font-src 'self' data:",
-      "connect-src 'self' https://api.example.com",
+      "connect-src 'self' https://api.example.com https://rpc.testnet.near.org https://rpc.mainnet.near.org https://helper.testnet.near.org https://helper.mainnet.near.org https://testnet.mynearwallet.com https://app.mynearwallet.com https://wallet.near.org",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",

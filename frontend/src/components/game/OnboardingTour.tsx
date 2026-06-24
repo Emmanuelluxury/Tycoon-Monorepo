@@ -28,7 +28,7 @@ const TOUR_STEPS: TourStep[] = [
     id: "properties",
     title: "Properties",
     description: "Buy properties to build your empire. Different colors represent different property groups.",
-    targetSelector: "[data-square-type='property']",
+    targetSelector: "[data-type='property']",
     position: "top",
   },
   {
@@ -99,26 +99,25 @@ export default function OnboardingTour({ onComplete, onSkip }: OnboardingTourPro
     if (!isVisible || currentStep >= TOUR_STEPS.length) return;
 
     const step = TOUR_STEPS[currentStep];
-    const element = document.querySelector(step.targetSelector) as HTMLElement;
-    
-    if (element) {
-      setTargetElement(element);
-      updateTooltipPosition(element, step.position);
-      
-      // Add highlight to target element
-      element.style.position = "relative";
-      element.style.zIndex = "60";
-      element.style.boxShadow = "0 0 0 4px rgba(0, 240, 255, 0.5), 0 0 20px rgba(0, 240, 255, 0.3)";
-      element.style.borderRadius = "4px";
+    const element = document.querySelector(step.targetSelector);
+    if (!(element instanceof HTMLElement)) {
+      setTargetElement(null);
+      return;
     }
 
+    setTargetElement(element);
+    updateTooltipPosition(element, step.position);
+
+    element.style.position = "relative";
+    element.style.zIndex = "60";
+    element.style.boxShadow = "0 0 0 4px rgba(0, 240, 255, 0.5), 0 0 20px rgba(0, 240, 255, 0.3)";
+    element.style.borderRadius = "4px";
+
     return () => {
-      if (element) {
-        element.style.position = "";
-        element.style.zIndex = "";
-        element.style.boxShadow = "";
-        element.style.borderRadius = "";
-      }
+      element.style.position = "";
+      element.style.zIndex = "";
+      element.style.boxShadow = "";
+      element.style.borderRadius = "";
     };
   }, [isVisible, currentStep]);
 

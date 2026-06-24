@@ -4,12 +4,13 @@
  */
 "use client";
 
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import { BoardSquare } from "./BoardSquare";
 import type { SquareType } from "./BoardSquare";
 import CenterArea from "./CenterArea";
 import OnboardingTour from "./OnboardingTour";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { Marketplace } from "./Marketplace";
 import { InventoryModal } from "./InventoryModal";
 import { SettingsModal } from "./SettingsModal";
@@ -102,14 +103,19 @@ export default function GameBoard(): React.JSX.Element {
   const [activeOverlay, setActiveOverlay] = useState<'inventory' | 'shop' | 'settings' | 'help' | null>(null);
   const [focusedPosition, setFocusedPosition] = useState<number | null>(null);
   const boardRef = useRef<HTMLDivElement>(null);
+  const shopOverlayRef = useRef<HTMLDivElement>(null);
+
+  const closeOverlay = useCallback(() => {
+    setActiveOverlay(null);
+    setTimeout(() => boardRef.current?.focus(), 0);
+  }, []);
+
+  useFocusTrap(shopOverlayRef, activeOverlay === 'shop', closeOverlay);
 
   const toggleOverlay = (overlay: 'inventory' | 'shop' | 'settings' | 'help') => {
     setActiveOverlay((prev) => {
       const newOverlay = prev === overlay ? null : overlay;
-      if (newOverlay) {
-        // When opening overlay, focus will be managed by the modal
-      } else {
-        // When closing, return focus to board
+      if (!newOverlay) {
         setTimeout(() => boardRef.current?.focus(), 0);
       }
       return newOverlay;
@@ -123,10 +129,11 @@ export default function GameBoard(): React.JSX.Element {
     onHelp: () => toggleOverlay('help'),
   });
 
-  const closeOverlay = () => {
-    setActiveOverlay(null);
-    setTimeout(() => boardRef.current?.focus(), 0);
-  };
+  useEffect(() => {
+    if (focusedPosition === null) return;
+    const cell = document.getElementById(`board-square-${focusedPosition}`);
+    cell?.focus();
+  }, [focusedPosition]);
 
   const handleBoardKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (focusedPosition === null) return;
@@ -169,6 +176,10 @@ export default function GameBoard(): React.JSX.Element {
         ref={boardRef}
         role="grid"
         aria-label="Monopoly-style game board with 40 squares"
+        aria-keyshortcuts="I S , ?"
+        aria-activedescendant={
+          focusedPosition !== null ? `board-square-${focusedPosition}` : undefined
+        }
         tabIndex={0}
         onFocus={handleBoardFocus}
         onKeyDown={handleBoardKeyDown}
@@ -232,14 +243,19 @@ export default function GameBoard(): React.JSX.Element {
 
         {/* Global Overlays */}
         {activeOverlay === 'shop' && (
-          <div className="absolute inset-0 z-40 bg-[var(--tycoon-bg)] overflow-y-auto pt-16">
+          <div
+            ref={shopOverlayRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Shop"
+            className="absolute inset-0 z-40 bg-[var(--tycoon-bg)] overflow-y-auto pt-16"
+          >
             <button 
               onClick={closeOverlay}
               className="absolute top-4 right-4 z-50 p-2 rounded-full bg-neutral-800 text-white hover:bg-neutral-700 transition-colors"
               aria-label="Close Shop"
             >
-              <span className="sr-only">Close</span>
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>
             <Marketplace />
           </div>
