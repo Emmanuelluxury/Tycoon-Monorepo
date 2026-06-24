@@ -2,9 +2,14 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useRouter } from 'next/navigation';
 import JoinRoomForm from '../JoinRoomForm';
-import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach, Mock } from 'vitest';
 import { setupServer } from 'msw/node';
 import { joinRoomHandlers } from '@/mocks/joinRoomHandlers';
+
+let trackSpy: Mock;
+vi.mock('@/lib/analytics', () => ({
+  track: vi.fn(),
+}));
 
 // Mock next/navigation
 vi.mock('next/navigation', () => ({
@@ -17,6 +22,7 @@ const server = setupServer(...joinRoomHandlers);
 beforeEach(() => {
   server.listen({ onUnhandledRequest: 'error' });
   vi.clearAllMocks();
+  trackSpy.mockClear();
 });
 
 afterEach(() => {
@@ -40,6 +46,14 @@ describe('JoinRoomForm', () => {
       expect(input).toBeInTheDocument();
       expect(input).toHaveAttribute('maxLength', '6');
       expect(input).toHaveAttribute('autoComplete', 'off');
+    });
+
+    it('should track form view on mount', () => {
+      render(<JoinRoomForm />);
+      expect(trackSpy).toHaveBeenCalledWith('join_room_form_viewed', {
+        route: '/join-room',
+        source: 'page_load',
+      });
     });
 
     it('should sanitize input by removing non-alphanumeric characters', async () => {
@@ -243,16 +257,29 @@ describe('JoinRoomForm', () => {
         expect(screen.getByText(/room not found/i)).toBeInTheDocument();
       });
 
-      // Clear the input and enter valid room
+      // Click retry with valid room code
       await userEvent.clear(input);
       await userEvent.type(input, 'TYCOON');
-
-      // Click retry
       const retryButton = screen.getByRole('button', { name: /retry/i });
       await userEvent.click(retryButton);
 
       await waitFor(() => {
         expect(mockPush).toHaveBeenCalledWith('/game-waiting?gameCode=TYCOON');
+      });
+    });
+
+    it('should show unauthorized error when auth token is missing', async () => {
+      window.localStorage.removeItem('access_token');
+      render(<JoinRoomForm />);
+      const input = screen.getByPlaceholderText('e.g. TYCOON');
+      const submitButton = screen.getByRole('button', { name: /join/i });
+
+      await userEvent.type(input, 'TYCOON');
+      await userEvent.click(submitButton);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('form-error-banner')).toBeInTheDocument();
+        expect(screen.getByText(/unauthorized/i)).toBeInTheDocument();
       });
     });
   });
