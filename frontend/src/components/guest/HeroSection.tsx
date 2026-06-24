@@ -58,7 +58,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }): React.ReactElem
   const prefersReducedMotion = usePrefersReducedMotion();
   const [error, setError] = useState<HeroErrorState>({ hasError: false, message: "" });
 
-  // SW-3: fire hero_view once on mount
+  // SW-FE-001: Track hero view on mount (once per session)
   useEffect(() => {
     fire("hero_view");
   }, [fire]);
@@ -94,7 +94,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }): React.ReactElem
         }
       }
     },
-    [fire, navigateSafely],
+    [fire, fireError, navigateSafely],
   );
 
   // SW-FE-001: Error state — show safe message when navigation fails
