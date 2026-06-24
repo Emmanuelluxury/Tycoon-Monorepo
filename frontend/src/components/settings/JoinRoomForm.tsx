@@ -22,7 +22,6 @@ import {
 import { apiClient } from "@/lib/api/client";
 import type { GameResponse } from "@/lib/api/types/dto";
 import { useJoinRoomTelemetry } from "@/hooks/useJoinRoomTelemetry";
-import { useErrorReporting } from "@/hooks/useErrorReporting";
 
 function parseZodErrors(error: ZodError): FieldErrors {
   const out: FieldErrors = {};
@@ -34,6 +33,33 @@ function parseZodErrors(error: ZodError): FieldErrors {
 }
 
 const SUBMIT_COOLDOWN_MS = 2_000;
+
+function toJoinRoomErrorBody(error: unknown) {
+  if (typeof error === "object" && error !== null && "statusCode" in error) {
+    return {
+      statusCode: (error as { statusCode?: number }).statusCode,
+      message: (error as { message?: string }).message,
+    };
+  }
+
+  if (error instanceof Error) {
+    return { message: error.message };
+  }
+
+  return {};
+}
+
+function getJoinRoomTelemetryErrorType(
+  error: unknown,
+): "not_found" | "room_full" | "server_error" | "unknown" {
+  const body = toJoinRoomErrorBody(error);
+
+  if (body.statusCode === 404) return "not_found";
+  if (body.statusCode === 409) return "room_full";
+  if (typeof body.statusCode === "number" && body.statusCode >= 500) return "server_error";
+
+  return "unknown";
+}
 
 export interface JoinRoomFormPreviewState {
   code?: string;
@@ -55,6 +81,8 @@ export default function JoinRoomForm({
   const [errors, setErrors] = useState<FieldErrors>(previewState?.errors ?? {});
   const [isLoading, setIsLoading] = useState(previewState?.isLoading ?? false);
 
+  const { trackFormViewed, trackJoinAttempted, trackJoinSucceeded, trackJoinFailed } = useJoinRoomTelemetry();
+
   const inputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const lastSubmitRef = useRef<number>(0);
@@ -66,6 +94,12 @@ export default function JoinRoomForm({
     if (previewState?.skipAutoFocus) return;
     inputRef.current?.focus();
   }, [previewState?.skipAutoFocus]);
+
+  React.useEffect(() => {
+    if (formViewedRef.current) return;
+    trackFormViewed();
+    formViewedRef.current = true;
+  }, [trackFormViewed]);
 
   // Keyboard shortcuts: Escape clears the input, Ctrl/Cmd+Enter submits the form
   React.useEffect(() => {
@@ -138,7 +172,7 @@ export default function JoinRoomForm({
         trackJoinSucceeded();
 
         // Report performance metrics (non-blocking)
-        if (window.requestIdleCallback) {
+        if (typeof window !== "undefined" && "requestIdleCallback" in window) {
           requestIdleCallback(() => {
             // Report join time to analytics if needed
             console.debug(`[Join Room] Join completed in ${duration.toFixed(2)}ms`);
@@ -147,12 +181,13 @@ export default function JoinRoomForm({
 
         router.push(`/game-waiting?gameCode=${encodeURIComponent(result.data.roomCode)}`);
       } catch (err: unknown) {
+        trackJoinFailed(getJoinRoomTelemetryErrorType(err));
         setErrors(mapJoinRoomErrors(err));
       } finally {
         setIsLoading(false);
       }
     },
-    [code, router, trackJoinAttempted, trackJoinSucceeded, trackJoinFailed, reportError, submitAttempts]
+    [code, router, trackJoinAttempted, trackJoinSucceeded, trackJoinFailed]
   );
 
   const isValid = joinRoomSchema.safeParse({ roomCode: code }).success;
