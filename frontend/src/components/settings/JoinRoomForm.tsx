@@ -33,6 +33,24 @@ function parseZodErrors(error: ZodError): FieldErrors {
   return out;
 }
 
+function getJoinRoomErrorType(
+  errors: FieldErrors,
+): "not_found" | "room_full" | "server_error" | "unknown" {
+  switch (errors._form) {
+    case JOIN_ROOM_I18N.errors.notFound:
+      return "not_found";
+    case JOIN_ROOM_I18N.errors.roomFull:
+      return "room_full";
+    case JOIN_ROOM_I18N.errors.inviteExpired:
+    case JOIN_ROOM_I18N.errors.alreadyJoined:
+    case JOIN_ROOM_I18N.errors.unauthorized:
+    case JOIN_ROOM_I18N.errors.serverError:
+      return "server_error";
+    default:
+      return "unknown";
+  }
+}
+
 const SUBMIT_COOLDOWN_MS = 2_000;
 
 export interface JoinRoomFormPreviewState {
@@ -54,18 +72,25 @@ export default function JoinRoomForm({
   const [code, setCode] = useState(previewState?.code ?? "");
   const [errors, setErrors] = useState<FieldErrors>(previewState?.errors ?? {});
   const [isLoading, setIsLoading] = useState(previewState?.isLoading ?? false);
+  const [submitAttempts, setSubmitAttempts] = useState(0);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const lastSubmitRef = useRef<number>(0);
-  const formViewedRef = useRef(false);
 
   const errorId = "room-code-error";
+  const { trackFormViewed, trackJoinAttempted, trackJoinSucceeded, trackJoinFailed } =
+    useJoinRoomTelemetry();
+  const { reportError } = useErrorReporting();
 
   React.useEffect(() => {
     if (previewState?.skipAutoFocus) return;
     inputRef.current?.focus();
   }, [previewState?.skipAutoFocus]);
+
+  React.useEffect(() => {
+    trackFormViewed("page_load");
+  }, [trackFormViewed]);
 
   // Keyboard shortcuts: Escape clears the input, Ctrl/Cmd+Enter submits the form
   React.useEffect(() => {
@@ -114,40 +139,58 @@ export default function JoinRoomForm({
       }
 
       if (!hasJoinAuthToken()) {
+        trackJoinFailed("server_error");
         setErrors({ _form: JOIN_ROOM_I18N.errors.unauthorized });
         return;
       }
 
       setIsLoading(true);
       setErrors({});
-
-      // Track the join attempt
+      setSubmitAttempts((previous) => previous + 1);
       trackJoinAttempted("submit_button");
 
       try {
-        const startTime = performance.now();
+        const startTime = typeof performance !== "undefined" ? performance.now() : 0;
 
-        const response = await apiClient.post<GameResponse>(
+        await apiClient.post<GameResponse>(
           `/games/${encodeURIComponent(result.data.roomCode)}/join`,
           {}
         );
 
-        const duration = performance.now() - startTime;
+        const duration =
+          typeof performance !== "undefined"
+            ? performance.now() - startTime
+            : undefined;
 
-        // Track successful join
         trackJoinSucceeded();
 
-        // Report performance metrics (non-blocking)
-        if (window.requestIdleCallback) {
+        if (typeof window !== "undefined" && "requestIdleCallback" in window) {
           requestIdleCallback(() => {
-            // Report join time to analytics if needed
-            console.debug(`[Join Room] Join completed in ${duration.toFixed(2)}ms`);
+            if (typeof duration === "number") {
+              console.debug(
+                `[Join Room] Join completed in ${duration.toFixed(2)}ms`,
+              );
+            }
           });
         }
 
-        router.push(`/game-waiting?gameCode=${encodeURIComponent(result.data.roomCode)}`);
+        router.push(
+          `/game-waiting?gameCode=${encodeURIComponent(result.data.roomCode)}`,
+        );
       } catch (err: unknown) {
-        setErrors(mapJoinRoomErrors(err));
+        const mappedErrors = mapJoinRoomErrors(err);
+        setErrors(mappedErrors);
+
+        const errorType = getJoinRoomErrorType(mappedErrors);
+        trackJoinFailed(errorType);
+
+        if (errorType === "server_error" || errorType === "unknown") {
+          reportError(err, {
+            component: "JoinRoomForm",
+            action: "join",
+            context: { attemptNumber: submitAttempts + 1 },
+          });
+        }
       } finally {
         setIsLoading(false);
       }
