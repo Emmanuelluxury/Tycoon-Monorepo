@@ -13,6 +13,7 @@
 /// | GCT-03 | `remove_player_from_game` when no backend controller is set and caller is owner |
 /// | GCT-04 | `export_state` reflects backend controller after it is set |
 /// | GCT-05 | `migrate` at v0 advances to v1; subsequent migrate is a no-op |
+/// | GCT-06 | `remove_player_from_game` event data field equals the supplied `turn_count` |
 #[cfg(test)]
 mod tests {
     extern crate std;
@@ -159,6 +160,35 @@ mod tests {
             client.export_state().backend_controller,
             Some(controller),
             "GCT-04: export_state must reflect the newly set backend controller"
+        );
+    }
+
+    // ── GCT-06 ───────────────────────────────────────────────────────────────
+
+    /// GCT-06: `remove_player_from_game` event data field equals the supplied
+    /// `turn_count`. Mirrors GCT-01 (which verifies `FundsWithdrawn` data) for
+    /// the `PlayerRemovedFromGame` event.
+    #[test]
+    fn gct_06_remove_player_event_data_equals_turn_count() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (_, client, owner, _, _) = setup(&env);
+
+        let player = Address::generate(&env);
+        let expected_turn_count: u32 = 77;
+        client.remove_player_from_game(&owner, &88, &player, &expected_turn_count);
+
+        let events = env.events().all();
+        assert!(
+            !events.is_empty(),
+            "GCT-06: PlayerRemovedFromGame event must be emitted"
+        );
+
+        let (_contract, _topics, data) = events.last().unwrap();
+        let actual_turn_count: u32 = soroban_sdk::FromVal::from_val(&env, &data);
+        assert_eq!(
+            actual_turn_count, expected_turn_count,
+            "GCT-06: event data must equal the supplied turn_count"
         );
     }
 
