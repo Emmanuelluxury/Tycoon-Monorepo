@@ -1,10 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { setupServer } from 'msw/node';
-import { shopHandlers } from '../src/mocks/handlers/shop';
+import { shopHandlers, resetIdempotencyCache } from '../src/mocks/handlers/shop';
 import {
   mockShopItems,
   mockInventory,
   mockPurchase,
+  mockPurchaseById,
 } from '../src/mocks/fixtures/shop';
 import type {
   ShopItemResponse,
@@ -17,7 +18,7 @@ const BASE = 'http://localhost:3000/api';
 
 const server = setupServer(...shopHandlers);
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
-afterEach(() => server.resetHandlers());
+afterEach(() => { server.resetHandlers(); resetIdempotencyCache(); });
 afterAll(() => server.close());
 
 // ── GET /api/shop/items ───────────────────────────────────────────────────────
@@ -288,5 +289,100 @@ describe('POST /api/shop/gift', () => {
     expect(body).toHaveProperty('shop_item_id');
     expect(body).toHaveProperty('total_price');
     expect(body).toHaveProperty('status');
+  });
+});
+
+// ── SW-FE-032: GET /api/shop/purchases/:id ────────────────────────────────────
+
+describe('SW-FE-032 — GET /api/shop/purchases/:id', () => {
+  it('returns 200 for a known purchase id', async () => {
+    const res = await fetch(`${BASE}/shop/purchases/${mockPurchaseById.id}`);
+    expect(res.status).toBe(200);
+  });
+
+  it('returns the correct purchase body', async () => {
+    const res = await fetch(`${BASE}/shop/purchases/${mockPurchaseById.id}`);
+    const body: PurchaseResponse = await res.json();
+    expect(body.id).toBe(mockPurchaseById.id);
+    expect(body.shop_item_id).toBe(mockPurchaseById.shop_item_id);
+    expect(body.status).toBe('completed');
+  });
+
+  it('body has all required snake_case fields', async () => {
+    const res = await fetch(`${BASE}/shop/purchases/${mockPurchaseById.id}`);
+    const body: PurchaseResponse = await res.json();
+    expect(body).toHaveProperty('user_id');
+    expect(body).toHaveProperty('shop_item_id');
+    expect(body).toHaveProperty('total_price');
+    expect(body).toHaveProperty('unit_price');
+    expect(body).toHaveProperty('final_price');
+    expect(body).toHaveProperty('created_at');
+  });
+
+  it('returns 404 for an unknown purchase id', async () => {
+    const res = await fetch(`${BASE}/shop/purchases/9999`);
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body).toHaveProperty('message');
+  });
+
+  it('GET /api/shop/purchases (list) still returns all purchases', async () => {
+    const res = await fetch(`${BASE}/shop/purchases`);
+    expect(res.status).toBe(200);
+    const body: PurchaseResponse[] = await res.json();
+    expect(body.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+// ── SW-FE-032: Idempotency-Key parity ────────────────────────────────────────
+
+describe('SW-FE-032 — POST /api/shop/purchase idempotency key parity', () => {
+  const KEY = 'test-idem-key-abc';
+
+  async function postWithKey(key: string): Promise<{ res: Response; body: PurchaseResponse }> {
+    const res = await fetch(`${BASE}/shop/purchase`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key },
+      body: JSON.stringify({ shop_item_id: 1, quantity: 1 }),
+    });
+    return { res, body: await res.json() };
+  }
+
+  it('first request with Idempotency-Key returns 201', async () => {
+    const { res } = await postWithKey(KEY);
+    expect(res.status).toBe(201);
+  });
+
+  it('replayed request with same Idempotency-Key returns 200 (cached replay)', async () => {
+    await postWithKey(KEY);
+    const { res } = await postWithKey(KEY);
+    expect(res.status).toBe(200);
+  });
+
+  it('replayed request returns identical body', async () => {
+    const { body: first } = await postWithKey(KEY);
+    const { body: second } = await postWithKey(KEY);
+    expect(second.id).toBe(first.id);
+    expect(second.transaction_id).toBe(first.transaction_id);
+  });
+
+  it('different Idempotency-Key produces a fresh 201', async () => {
+    await postWithKey(KEY);
+    const { res: r2 } = await postWithKey('another-key-xyz');
+    expect(r2.status).toBe(201);
+  });
+
+  it('transaction_id echoes the Idempotency-Key header value', async () => {
+    const { body } = await postWithKey(KEY);
+    expect(body.transaction_id).toBe(KEY);
+  });
+
+  it('no Idempotency-Key header returns plain 201', async () => {
+    const res = await fetch(`${BASE}/shop/purchase`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shop_item_id: 1, quantity: 1 }),
+    });
+    expect(res.status).toBe(201);
   });
 });
