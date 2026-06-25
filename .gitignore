@@ -20,3 +20,7 @@ contract/deploy/wasm-size-report.md
 
 # Issue tracking / scratch notes
 vrickish.md
+
+# Test snapshots
+__snapshots__/
+*.snap
