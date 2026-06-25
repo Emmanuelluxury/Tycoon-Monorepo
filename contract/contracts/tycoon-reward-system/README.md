@@ -19,6 +19,9 @@ This project implements the `TycoonRewardSystem` smart contract on the Soroban p
 
 - `src/lib.rs`: Main contract logic, storage definitions, and helper functions.
 - `src/test.rs`: Unit tests verifying mint, burn, overflow protection, and event emission.
+- `ENTRYPOINTS.md`: Complete entrypoint classification (admin-only, dual-role, public, deprecated).
+- `DEPRECATION.md`: Migration guide for the deprecated `redeem_voucher` entrypoint.
+- `SECURITY_REVIEW_CHECKLIST.md`: Security review findings and open items.
 
 ## usage
 
@@ -105,8 +108,25 @@ The Tycoon Reward System contract must meet the following acceptance criteria:
 ### Emergency Pause
 - Only admin can pause/unpause the contract
 - When paused, voucher redemption is blocked
+- When paused, voucher transfers are blocked
 - Pause/unpause emits appropriate events
 - Contract state persists across pause/unpause cycles
+
+### State Migration
+- `migrate()` can only be called by the admin
+- Calling `migrate()` at state version 1 is a no-op (idempotent)
+- State version is readable via `DataKey::StateVersion` in persistent storage
+
+### Backend Minter
+- `set_backend_minter` stores the minter address; only admin can call it
+- `clear_backend_minter` removes the minter; only admin can call it
+- `get_backend_minter` returns `None` when no minter is set
+- After `clear_backend_minter`, the former minter can no longer mint
+
+### Deprecated Entrypoints
+- `redeem_voucher(token_id)` always panics with `"Use redeem_voucher_from instead"`
+- Clients must use `redeem_voucher_from(redeemer, token_id)` instead
+- See `DEPRECATION.md` for the full migration guide
 
 ### Events
 - All state-changing operations emit appropriate events
