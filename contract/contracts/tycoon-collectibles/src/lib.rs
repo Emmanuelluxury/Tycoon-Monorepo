@@ -804,4 +804,6 @@ mod coverage_tests;
 #[cfg(test)]
 mod entrypoint_auth_tests;
 #[cfg(test)]
+mod simulation_scenarios;
+#[cfg(test)]
 mod test;
