@@ -14,9 +14,9 @@ crate and are linked below.
 |---|---|---|
 | tycoon-token | [SECURITY_REVIEW_CHECKLIST.md](contracts/tycoon-token/SECURITY_REVIEW_CHECKLIST.md) | ✅ Complete |
 | tycoon-collectibles | [SECURITY_REVIEW_CHECKLIST.md](contracts/tycoon-collectibles/SECURITY_REVIEW_CHECKLIST.md) | ⚠️ Items unchecked — pre-mainnet |
-| tycoon-boost-system | [SECURITY_REVIEW_CHECKLIST.md](contracts/tycoon-boost-system/SECURITY_REVIEW_CHECKLIST.md) | ✅ Complete — SW-CT-025/028/029/030/031 all applied |
-| tycoon-reward-system | No dedicated checklist | 🔲 Needed before mainnet |
-| tycoon-game | No dedicated checklist | 🔲 Needed before mainnet |
+| tycoon-boost-system | [SECURITY_REVIEW_CHECKLIST.md](contracts/tycoon-boost-system/SECURITY_REVIEW_CHECKLIST.md) | ✅ Complete (1 open medium) |
+| tycoon-reward-system | [SECURITY_REVIEW_CHECKLIST.md](contracts/tycoon-reward-system/SECURITY_REVIEW_CHECKLIST.md) | ✅ Checklist present (SW-CT-037) |
+| tycoon-game | [SECURITY_REVIEW_CHECKLIST.md](contracts/tycoon-game/SECURITY_REVIEW_CHECKLIST.md) | ✅ Checklist present (SW-CT-037) |
 | tycoon-lib | No public entrypoints | ✅ Library only — no auth surface |
 
 ---
@@ -107,8 +107,8 @@ All cross-contract calls audited in `CEI_SECURITY_AUDIT.md`. Summary:
 | ID | Contract | Issue | Severity |
 |---|---|---|---|
 | SW-CONTRACT-HYGIENE-001-M1 | tycoon-boost-system | No `set_admin` / admin key rotation | Medium |
-| SW-CONTRACT-HYGIENE-001-M2 | tycoon-reward-system | No dedicated security checklist | Medium |
-| SW-CONTRACT-HYGIENE-001-M3 | tycoon-game | No dedicated security checklist | Medium |
+| ~~SW-CONTRACT-HYGIENE-001-M2~~ | tycoon-reward-system | ~~No dedicated security checklist~~ | ✅ Resolved (SW-CT-037) |
+| ~~SW-CONTRACT-HYGIENE-001-M3~~ | tycoon-game | ~~No dedicated security checklist~~ | ✅ Resolved (SW-CT-037) |
 
 ---
 
