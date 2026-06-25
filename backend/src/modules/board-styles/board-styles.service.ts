@@ -4,13 +4,28 @@ import { Repository } from 'typeorm';
 import { BoardStyle } from './entities/board-style.entity';
 import { CreateBoardStyleDto } from './dto/create-board-style.dto';
 import { UpdateBoardStyleDto } from './dto/update-board-style.dto';
+import { BoardStylesPaginationDto } from './dto/board-styles-pagination.dto';
+import {
+  PaginationService,
+  PaginatedResponse,
+  SortOrder,
+} from '../../common';
 import { RedisService } from '../redis/redis.service';
+
+const BOARD_STYLE_SORT_FIELDS = [
+  'created_at',
+  'updated_at',
+  'name',
+  'price',
+  'id',
+] as const;
 
 @Injectable()
 export class BoardStylesService {
   constructor(
     @InjectRepository(BoardStyle)
     private readonly boardStyleRepository: Repository<BoardStyle>,
+    private readonly paginationService: PaginationService,
     private readonly redisService: RedisService,
   ) {}
 
@@ -21,16 +36,29 @@ export class BoardStylesService {
     return saved;
   }
 
-  async findAll(isPremium?: boolean): Promise<BoardStyle[]> {
+  async findAll(
+    paginationDto: BoardStylesPaginationDto,
+  ): Promise<PaginatedResponse<BoardStyle>> {
     const qb = this.boardStyleRepository.createQueryBuilder('board_style');
 
-    if (isPremium !== undefined) {
-      qb.andWhere('board_style.is_premium = :isPremium', { isPremium });
+    if (paginationDto.is_premium !== undefined) {
+      qb.andWhere('board_style.is_premium = :isPremium', {
+        isPremium: paginationDto.is_premium,
+      });
     }
 
-    qb.orderBy('board_style.created_at', 'DESC');
+    const pagination = {
+      ...paginationDto,
+      sortBy: paginationDto.sortBy ?? 'created_at',
+      sortOrder: paginationDto.sortOrder ?? SortOrder.DESC,
+    };
 
-    return await qb.getMany();
+    return this.paginationService.paginate(
+      qb,
+      pagination,
+      ['name', 'description'],
+      [...BOARD_STYLE_SORT_FIELDS],
+    );
   }
 
   async findOne(id: number): Promise<BoardStyle> {
