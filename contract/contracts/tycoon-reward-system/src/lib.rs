@@ -150,6 +150,10 @@ impl TycoonRewardSystem {
             panic!("Invalid token: not in allowlist");
         }
 
+        if amount > i128::MAX as u128 {
+            panic!("amount exceeds i128::MAX");
+        }
+
         let token_client = soroban_sdk::token::Client::new(&e, &token);
         let contract_address = e.current_contract_address();
 
@@ -206,9 +210,10 @@ impl TycoonRewardSystem {
             .persistent()
             .get(&DataKey::VoucherCount)
             .unwrap_or(VOUCHER_ID_START);
-        e.storage()
-            .persistent()
-            .set(&DataKey::VoucherCount, &(token_id + 1));
+        e.storage().persistent().set(
+            &DataKey::VoucherCount,
+            &token_id.checked_add(1).expect("VoucherCount overflow"),
+        );
 
         e.storage()
             .persistent()
@@ -450,9 +455,13 @@ mod test;
 #[cfg(test)]
 mod overflow_rounding_tests;
 
+#[cfg(test)]
 mod admin_access_control_tests;
 #[cfg(test)]
 mod transfer_tests;
 
 #[cfg(test)]
 mod simulation_scenarios;
+
+#[cfg(test)]
+mod security_review_tests;
