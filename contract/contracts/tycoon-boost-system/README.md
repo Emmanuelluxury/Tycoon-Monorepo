@@ -106,6 +106,13 @@ All values are in basis points (10 000 = 100 %)
 
 ---
 
+## Acceptance Criteria
+
+See [ACCEPTANCE_CRITERIA.md](./ACCEPTANCE_CRITERIA.md) for the full list of acceptance criteria (SW-CT-028).
+Each criterion maps to a named test so CI coverage can be traced end-to-end.
+
+---
+
 ## API
 
 ```rust
