@@ -7,6 +7,9 @@ mod fixture;
 mod game_reward_flow;
 #[cfg(test)]
 mod game_token_flow;
+// Stellar Wave (SW-CON-001): legacy entrypoint deprecation coverage
+#[cfg(test)]
+mod legacy_entrypoints;
 #[cfg(test)]
 mod multi_player_flow;
 #[cfg(test)]
