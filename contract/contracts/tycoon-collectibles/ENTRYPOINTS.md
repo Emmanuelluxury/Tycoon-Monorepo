@@ -37,7 +37,7 @@ They are open to any address that can provide a valid signature.
 | Entrypoint | Auth call | Notes |
 |---|---|---|
 | `buy_collectible_from_shop(buyer, token_id, use_usdc)` | `buyer.require_auth()` | Requires shop initialized, stock > 0, price > 0 |
-| `buy_collectible(buyer, token_id, amount)` | `buyer.require_auth()` | Direct mint; no price check |
+| `buy_collectible(buyer, token_id, amount)` | `buyer.require_auth()` | Deprecated direct mint path; no price check. Use `buy_collectible_from_shop` or `mint_collectible` instead |
 | `transfer(from, to, token_id, amount)` | `from.require_auth()` | Fails if `from` has insufficient balance |
 | `burn(owner, token_id, amount)` | `owner.require_auth()` | Fails if insufficient balance |
 | `burn_collectible_for_perk(caller, token_id)` | `caller.require_auth()` | Fails if paused, no balance, or `Perk::None` |

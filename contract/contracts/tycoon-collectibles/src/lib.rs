@@ -355,6 +355,11 @@ impl TycoonCollectibles {
         Ok(())
     }
 
+    /// Deprecated public direct mint entrypoint.
+    ///
+    /// Use `buy_collectible_from_shop` for public purchases or `mint_collectible`
+    /// for backend-authorized reward minting.
+    #[deprecated(since = "0.2.0", note = "Use buy_collectible_from_shop for public purchases or mint_collectible for backend reward minting")]
     pub fn buy_collectible(
         env: Env,
         buyer: Address,

@@ -39,6 +39,7 @@ Issue: SW-CT-022
   - Emits `(coll_buy, buyer)` event.
   - Emits `(fee_dist, token_id)` event when fee config is present.
   - State mutations (stock decrement, mint) happen **before** external token transfers (CEI).
+- [x] `buy_collectible` is deprecated for public use and retained only for compatibility; use `buy_collectible_from_shop` for purchases or `mint_collectible` for backend-authorized minting.
 
 ### Token Operations
 
