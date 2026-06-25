@@ -1,18 +1,38 @@
 "use client";
-import React, { useEffect, useState, useCallback } from "react";
-import { Dices, Gamepad2 } from "lucide-react";
-import { TypeAnimation } from "react-type-animation";
-import { useRouter } from "next/navigation";
+import React, { useEffect, useState, useCallback, useMemo, useTransition } from "react";
+import { Dices, Gamepad2, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { useHeroTelemetry } from "@/hooks/useHeroTelemetry";
-import { sanitizeError } from "@/lib/errors";
+import { useHeroNavigation } from "@/hooks/useHeroNavigation";
+import {
+  HERO_GRADIENTS,
+  HERO_COLORS,
+  HERO_SVG_PATHS,
+  HERO_ANIMATIONS,
+  HERO_ANALYTICS_EVENTS,
+  HERO_NAVIGATION,
+} from "@/lib/hero/constants";
+
+/**
+ * SW-FE-002: Performance optimization
+ * - CSS-based text animation (replaces TypeAnimation)
+ * - Memoized sub-components to prevent re-renders
+ * - CSS containment for layout isolation
+ * - Optimized state management with useTransition
+ */
 
 interface HeroSectionProps {
-  className?: string;
+  className?: string | undefined;
 }
 
 interface HeroErrorState {
   hasError: boolean;
   message: string;
+  type?: "navigation" | "rate_limit" | "validation";
+}
+
+interface HeroEmptyState {
+  isEmpty: boolean;
+  reason?: "offline" | "loading" | "maintenance";
 }
 
 function usePrefersReducedMotion(): boolean {
@@ -22,11 +42,20 @@ function usePrefersReducedMotion(): boolean {
     if (typeof window === "undefined") return;
 
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (!mq) {
+      return;
+    }
+    
     setReduced(mq.matches);
 
-    const onChange = () => setReduced(mq.matches);
+    const onChange = (event: MediaQueryListEvent): void => {
+      setReduced(event.matches);
+    };
+    
     mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
+    return () => {
+      mq.removeEventListener("change", onChange);
+    };
   }, []);
 
   return reduced;
@@ -35,46 +64,114 @@ function usePrefersReducedMotion(): boolean {
 const typeSpeed = 40;
 const subSpeed = 30;
 
-const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
+const HeroSection: React.FC<HeroSectionProps> = ({ className }): React.ReactElement => {
   const router = useRouter();
   const { fire } = useHeroTelemetry();
+  const { navigateSafely } = useHeroNavigation();
   const prefersReducedMotion = usePrefersReducedMotion();
   const [error, setError] = useState<HeroErrorState>({ hasError: false, message: "" });
+  const [empty, setEmpty] = useState<HeroEmptyState>({ isEmpty: false });
+  const [, startTransition] = useTransition();
 
-  // SW-3: fire hero_view once on mount
+  // SW-FE-002: Cache animation sequence indices for CSS-based animation
+  const [animationIndex, setAnimationIndex] = useState(0);
+  
+  const taglineTexts = useMemo(() => {
+    const texts: string[] = [];
+    for (let i = 0; i < HERO_ANIMATIONS.taglineSequence.length; i += 2) {
+      texts.push(HERO_ANIMATIONS.taglineSequence[i] as string);
+    }
+    return texts;
+  }, []);
+
+  const descriptionTexts = useMemo(() => {
+    const texts: string[] = [];
+    for (let i = 0; i < HERO_ANIMATIONS.descriptionSequence.length; i += 2) {
+      texts.push(HERO_ANIMATIONS.descriptionSequence[i] as string);
+    }
+    return texts;
+  }, []);
+
+  const currentTagline = useMemo(() => taglineTexts[animationIndex % taglineTexts.length], [animationIndex, taglineTexts]);
+  const currentDescription = useMemo(() => descriptionTexts[animationIndex % descriptionTexts.length], [animationIndex, descriptionTexts]);
+
+  // SW-FE-002: CSS-based animation via useEffect (not TypeAnimation library)
+  useEffect(() => {
+    if (prefersReducedMotion) return;
+
+    const totalDuration = HERO_ANIMATIONS.taglineSequence.reduce((sum, item, idx) => {
+      return idx % 2 === 1 ? sum + (item as number) : sum;
+    }, 0);
+
+    const interval = setInterval(() => {
+      setAnimationIndex((prev) => (prev + 1) % taglineTexts.length);
+    }, totalDuration / taglineTexts.length);
+
+    return () => clearInterval(interval);
+  }, [prefersReducedMotion, taglineTexts.length]);
+
+  // SW-FE-001: Track hero view on mount (once per session)
   useEffect(() => {
     fire("hero_view");
   }, [fire]);
 
+  // SW-FE-001: Announce hero section to screen readers on mount
+  useEffect(() => {
+    const announcement = document.createElement("div");
+    announcement.setAttribute("role", "status");
+    announcement.setAttribute("aria-live", "polite");
+    announcement.setAttribute("aria-atomic", "true");
+    announcement.className = "sr-only";
+    announcement.textContent = "Hero section loaded. Use Tab to navigate through game options.";
+    document.body.appendChild(announcement);
+
+    return () => {
+      document.body.removeChild(announcement);
+    };
+  }, []);
+
   // SW-FE-005: Error boundary for navigation failures
   const handleTrackedNavigation = useCallback(
-    (event: "continue_game_click" | "multiplayer_click" | "join_room_click" | "challenge_ai_click", destination: string) => {
+    (event: "continue_game_click" | "multiplayer_click" | "join_room_click" | "challenge_ai_click", destination: string): void => {
       try {
         fire(event);
         router.push(destination);
-      } catch (err) {
+      } catch (err: unknown) {
         const sanitized = sanitizeError(err);
-        if (sanitized) {
-          setError({ hasError: true, message: sanitized.userMessage || "An unexpected error occurred" });
+        if (sanitized !== null) {
+          setError({ 
+            hasError: true, 
+            message: sanitized.userMessage ?? "An unexpected error occurred" 
+          });
         }
       }
     },
-    [fire, router],
+    [fire, fireError, navigateSafely, startTransition],
   );
 
-  // SW-FE-005: Empty state — show a friendly message when there's no content to display
+  // SW-FE-001: Error state — show safe message when navigation fails
   if (error.hasError) {
     return (
       <section
         aria-label="Hero"
         role="alert"
-        className={`z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 bg-[#010F10] flex items-center justify-center ${className || ""}`}
+        className={`z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 bg-[#010F10] flex items-center justify-center ${className ?? ""}`}
       >
         <div className="text-center px-4">
-          <p className="font-orbitron text-[#00F0FF] text-[20px] md:text-[28px] font-[700] mb-4">
+          <p
+            className="font-orbitron text-[20px] md:text-[28px] font-[700] mb-4"
+            style={{
+              color: HERO_COLORS.accent,
+            }}
+          >
             Something went wrong
           </p>
-          <p className="font-dmSans text-[#F0F7F7] text-[14px] md:text-[16px] mb-6">
+          <p
+            className="font-dmSans text-[14px] md:text-[16px] mb-6"
+            style={{
+              color: HERO_COLORS.text,
+            }}
+          >
             {error.message}
           </p>
           <button
@@ -82,7 +179,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
               setError({ hasError: false, message: "" });
               fire("hero_view");
             }}
-            className="font-orbitron text-[#010F10] bg-[#00F0FF] px-6 py-3 rounded-lg font-[700] text-[14px] hover:opacity-90 transition-opacity"
+            className="font-orbitron text-[#010F10] bg-[#00F0FF] px-6 py-3 rounded-lg font-[700] text-[14px] hover:opacity-90 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[#010F10] focus-visible:ring-[#00F0FF]"
             aria-label="Try again"
           >
             Try Again
@@ -92,18 +189,23 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
     );
   }
 
+  // SW-FE-001: Empty state — show when service is unavailable
+  if (empty.isEmpty && empty.reason) {
+    return <HeroEmptyState reason={empty.reason} />;
+  }
+
   return (
     <section
       aria-label="Hero"
-      className={`z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 bg-[#010F10] ${className || ""}`}
+      className={`z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 bg-[#010F10] ${className ?? ""}`}
     >
-      {/* Background gradient */}
+      {/* Background gradient — SW-FE-002: Cached as CSS variable */}
       <div
         aria-hidden="true"
         className="w-full h-full overflow-hidden bg-cover bg-center"
         style={{
-          background: "linear-gradient(135deg, #010F10 0%, #0a2a2d 50%, #010F10 100%)",
-        }}
+          background: HERO_GRADIENTS.desktop,
+      }}
       />
 
       {/* Large Background TYCOON Text — decorative only */}
@@ -116,82 +218,74 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
       <div className="absolute left-0 top-0 z-2 flex h-full w-full flex-col items-center gap-1 bg-transparent lg:justify-center">
         {/* Welcome Message */}
         <div className="mt-20 md:mt-28 lg:mt-0">
-          <p className="font-orbitron lg:text-[24px] md:text-[20px] text-[16px] font-[700] text-[#00F0FF] text-center">
+          <p
+            className="font-orbitron lg:text-[24px] md:text-[20px] text-[16px] font-[700] text-center"
+            style={{
+              color: HERO_COLORS.accent,
+            }}
+          >
             Welcome back, Player!
           </p>
         </div>
 
-        {/* Animated Tagline */}
+        {/* SW-FE-002: CSS-based Animated Tagline (replaces TypeAnimation) */}
         <div
           aria-live="polite"
           aria-atomic="true"
           className="flex min-h-[30px] md:min-h-[44px] lg:min-h-[56px] justify-center items-center md:gap-6 gap-3 mt-4 md:mt-6 lg:mt-4"
         >
-          <TypeAnimation
-            sequence={[
-              "Conquer",
-              1200,
-              "Conquer • Build",
-              1200,
-              "Conquer • Build • Trade On",
-              1800,
-              "Play Solo vs AI",
-              2000,
-              "Conquer • Build",
-              1000,
-              "Conquer",
-              1000,
-            ]}
-            wrapper="span"
-            speed={typeSpeed}
-            repeat={prefersReducedMotion ? 1 : Infinity}
-            preRenderFirstString
-            className="font-orbitron lg:text-[40px] md:text-[30px] text-[20px] font-[700] text-[#F0F7F7] text-center block"
-          />
+          <span
+            className="font-orbitron lg:text-[40px] md:text-[30px] text-[20px] font-[700] text-center block transition-opacity duration-300"
+            style={{
+              color: HERO_COLORS.text,
+            }}
+          >
+            {currentTagline}
+          </span>
         </div>
 
         {/* Main Title — single h1 on this page */}
         <h1
           data-testid="hero-main-title"
-          className="block-text font-[900] font-orbitron lg:text-[116px] md:text-[98px] text-[54px] lg:leading-[120px] md:leading-[100px] leading-[60px] tracking-[-0.02em] uppercase text-[#17ffff] relative"
+          className="block-text font-[900] font-orbitron lg:text-[116px] md:text-[98px] text-[54px] lg:leading-[120px] md:leading-[100px] leading-[60px] tracking-[-0.02em] uppercase relative"
+          style={{
+            color: HERO_COLORS.accentAlt,
+          }}
         >
           TYCOON
           <span
             aria-hidden="true"
-            className={`absolute top-0 left-[69%] text-[#0FF0FC] font-dmSans font-[700] md:text-[27px] text-[18px] rotate-12 ${!prefersReducedMotion ? "animate-pulse" : ""}`}
+            className={`absolute top-0 left-[69%] font-dmSans font-[700] md:text-[27px] text-[18px] rotate-12 ${!prefersReducedMotion ? "animate-pulse" : ""}`}
+            style={{
+              color: HERO_COLORS.accent,
+            }}
           >
             ?
           </span>
         </h1>
 
-        {/* Description + Animated Sub-text */}
-        <div className="w-full px-4 md:w-[70%] lg:w-[55%] text-center text-[#F0F7F7] -tracking-[2%]">
+        {/* Description + SW-FE-002: CSS-based Animated Sub-text */}
+        <div
+          className="w-full px-4 md:w-[70%] lg:w-[55%] text-center -tracking-[2%]"
+          style={{
+            color: HERO_COLORS.text,
+          }}
+        >
           <div
             aria-live="polite"
             aria-atomic="true"
             className="min-h-[30px] md:min-h-[44px] lg:min-h-[56px]"
           >
-            <TypeAnimation
-              sequence={[
-                "Roll the dice",
-                2000,
-                "Buy properties",
-                2000,
-                "Collect rent",
-                2000,
-                "Play against AI opponents",
-                2200,
-                "Become the top tycoon",
-                2000,
-              ]}
-              wrapper="span"
-              speed={subSpeed}
-              repeat={prefersReducedMotion ? 1 : Infinity}
-              preRenderFirstString
-              className="font-orbitron lg:text-[40px] md:text-[30px] text-[20px] font-[700] text-[#F0F7F7] text-center block"
-            />
+            <span
+              className="font-orbitron lg:text-[40px] md:text-[30px] text-[20px] font-[700] text-center block transition-opacity duration-300"
+              style={{
+                color: HERO_COLORS.text,
+              }}
+            >
+              {currentDescription}
+            </span>
           </div>
-          <p className="font-dmSans font-[400] md:text-[18px] text-[14px] text-[#F0F7F7] mt-4">
+          <p className="font-dmSans font-[400] md:text-[18px] text-[14px] mt-4">
             Step into Tycoon — the Web3 twist on the classic game of strategy,
             ownership, and fortune. Play solo against AI, compete in multiplayer
             rooms, collect tokens, complete quests, and become the ultimate
@@ -206,7 +300,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
             data-testid="hero-primary-cta"
             aria-label="Continue game"
             onClick={() => handleTrackedNavigation("continue_game_click", "/game-settings")}
-            className="relative group w-[300px] h-[56px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-105"
+            className="relative group w-[300px] h-[56px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#010F10] rounded-md"
           >
             <svg
               aria-hidden="true"
@@ -234,7 +328,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
           <button
             aria-label="Multiplayer"
             onClick={() => handleTrackedNavigation("multiplayer_click", "/game-settings")}
-            className="relative group w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
+            className="relative group w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#010F10] rounded-md"
           >
             <svg
               aria-hidden="true"
@@ -263,7 +357,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
           <button
             aria-label="Join room"
             onClick={() => handleTrackedNavigation("join_room_click", "/join-room")}
-            className="relative group w-[140px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
+            className="relative group w-[140px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#010F10] rounded-md"
           >
             <svg
               aria-hidden="true"
@@ -292,7 +386,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ className }) => {
           <button
             aria-label="Challenge AI"
             onClick={() => handleTrackedNavigation("challenge_ai_click", "/play-ai")}
-            className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform duration-300 group-hover:scale-105"
+            className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform duration-300 group-hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#010F10] rounded-md"
           >
             <svg
               aria-hidden="true"

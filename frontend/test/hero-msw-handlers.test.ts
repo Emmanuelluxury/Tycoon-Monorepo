@@ -76,6 +76,26 @@ describe("SW-FE-008: Hero MSW handlers — parity with API", () => {
     expect(body.total).toBeGreaterThanOrEqual(0);
   });
 
+  it("GET /api/hero/content?empty=true returns empty hero content", async () => {
+    const res = await fetch("/api/hero/content?empty=true");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.announcements).toHaveLength(0);
+    expect(body.features).toHaveLength(0);
+    expect(body.welcomeMessage).toBe("Welcome back, Player!");
+  });
+
+  it("GET /api/hero/content?error=true returns a 500 error body", async () => {
+    const res = await fetch("/api/hero/content?error=true");
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body).toMatchObject({
+      code: "HERO_FETCH_ERROR",
+      message: "Failed to load hero content. Please try again.",
+      statusCode: 500,
+    });
+  });
+
   it("fixture types match the HeroContentResponse interface", () => {
     // Compile-time check: these assignments should be valid
     const content = mockHeroContent;

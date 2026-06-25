@@ -2,6 +2,68 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased] - SW-CT-031
+
+### Added
+- `contract/SECURITY_REVIEW_CHECKLIST.md §8` — new "Workspace Hygiene Checks"
+  section (SW-CT-031) covering dependency hygiene, code hygiene, documentation
+  hygiene, test hygiene, CI hygiene, and security-doc hygiene.
+  
+### Changed
+- `contract/SECURITY_REVIEW_CHECKLIST.md` — issue header updated to reference
+  SW-CT-031; per-contract status table updated to reflect all boost-system
+  Stellar Wave items (SW-CT-025 through SW-CT-031) applied.
+
+## [Unreleased] - SW-CT-031
+
+### Added
+- `contract/SECURITY_REVIEW_CHECKLIST.md §8` — new "Workspace Hygiene Checks" section (SW-CT-031): dependency, code, documentation, test, CI, and security-doc hygiene items.
+
+### Changed
+- `contract/SECURITY_REVIEW_CHECKLIST.md` — issue header updated to SW-CT-031; per-contract status table updated to reflect all boost-system SW-CT-025 through SW-CT-031 items.
+
+## [Unreleased] - SW-CT-030
+
+### Added
+- `ENTRYPOINTS.md` — authoritative table of admin-only vs public entrypoints,
+  authorization matrix, and rollout notes.
+- `src/admin_access_control_tests.rs` — 7 new boundary tests (BOUNDARY-01 through
+  BOUNDARY-07) covering public read views, admin-only gates, isolation, and
+  deprecated function auth requirements.
+
+### Changed
+- Inline doc comment on `add_boost` corrected (said "Admin-only" but described
+  player self-service; now consistent with ENTRYPOINTS.md).
+
+## [Unreleased] - SW-CT-030
+
+### Added
+- `ENTRYPOINTS.md` — authoritative admin-only vs public entrypoint table, auth matrix, and rollout notes.
+- `src/admin_access_control_tests.rs` — 7 new boundary tests (BOUNDARY-01 through BOUNDARY-07).
+
+## [Unreleased] - SW-CT-029
+
+### Added
+- `src/deprecation_tests.rs` — full test suite (13 tests) for the deprecation path:
+  - DEP-01/02: `get_boosts` callable and returns correct data
+  - DEP-03: proves `get_boosts` includes expired boosts (the key regression risk)
+  - DEP-04: `get_boosts` / `get_active_boosts` agree for non-expired boosts
+  - DEP-05/06: `prune_expired_boosts` return value (0 when clean, count when dirty)
+  - DEP-07: explicit prune + calculate equals automatic-prune + calculate
+  - DEP-08/09: `DeprecatedFunctionCalledEvent` emitted by both deprecated functions
+  - DEP-10/11: migration correctness — swapping deprecated → replacement is safe
+  - DEP-12: deprecated read does not corrupt mutable state
+
+### Changed
+- `DEPRECATION_PLAN.md` — updated status to ✅ test-covered; referenced SW-CT-029.
+
+## [Unreleased] - SW-CT-028
+
+### Added
+- `ACCEPTANCE_CRITERIA.md` — complete acceptance-criteria matrix (AC-INIT through AC-CI).
+  Every criterion maps to a named test for traceable CI coverage.
+- Updated `README.md` to reference `ACCEPTANCE_CRITERIA.md` under a dedicated section.
+
 ## [Unreleased] - SW-CT-027
 
 ### Added

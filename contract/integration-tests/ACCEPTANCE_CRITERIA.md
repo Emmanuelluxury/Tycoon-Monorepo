@@ -1,100 +1,195 @@
-# Integration Tests — Acceptance Criteria
+# Integration Tests - Acceptance Criteria
 
-> **Stellar Wave**: SW-CON-002 · SW-CON-003 · SW-CON-004 · SW-CON-005
+## Overview
+This document defines the acceptance criteria for Soroban contract integration tests as part of the Stellar Wave engineering batch (SW-CONTRACT-001).
 
----
+## Stellar Wave Hygiene Mapping
 
-## SW-CON-002 — Workspace hygiene: admin-only vs public entrypoints
+| Work item | Issue reference | Coverage surface |
+|-----------|-----------------|------------------|
+| Unit / integration coverage | SW-CT-038 | `src/unit_coverage.rs`, shared `Fixture`, `cargo test --package tycoon-integration-tests` |
+| Simulation scenarios | SW-FE-001 | `src/simulation_scenarios.rs` realistic voucher, reward, player, cash tier, and migration flows |
+| Documentation and acceptance criteria | SW-CONTRACT-001 | This file plus `../PR_BODY_STELLAR_WAVE_HYGIENE.md` |
+| Deprecation path for legacy entrypoints | SW-CONTRACT-001 | `src/legacy_entrypoints.rs`, now registered by `src/lib.rs` |
 
-### Contract: `tycoon-reward-system`
+No acceptance item in this batch introduces a new oracle integration or unaudited production privilege. Existing legacy risks are documented in `../MIGRATION_LEGACY_ENTRYPOINTS.md`.
 
-| # | Criterion | Verification |
-|---|-----------|-------------|
-| 2.1 | Every formerly-unprefixed admin function (`migrate`, `pause`, `unpause`, `set_backend_minter`, `clear_backend_minter`, `withdraw_funds`) has an `admin_*` canonical counterpart | `grep "pub fn admin_" contracts/tycoon-reward-system/src/lib.rs` returns all six |
-| 2.2 | Original names are retained as `#[deprecated]` shims that delegate to the `admin_*` function | `grep "#\[deprecated" contracts/tycoon-reward-system/src/lib.rs` lists each shim |
-| 2.3 | Each `admin_*` function calls `require_admin(&e)` before touching state | Code review of `lib.rs` |
-| 2.4 | Public entrypoints (`mint_voucher`, `redeem_voucher_from`, `transfer`, `get_balance`, `owned_token_count`, `get_backend_minter`) carry no admin check | Code review confirms absence of `admin.require_auth()` in those functions |
-| 2.5 | `cargo check -p tycoon-reward-system` passes | CI green |
-| 2.6 | Existing unit tests (`cargo test -p tycoon-reward-system`) continue to pass | CI green |
+## Test Scope
 
----
+### 1. Cross-Contract Integration Tests
+**File**: `tests/cross_contract_integration.rs`
 
-## SW-CON-003 — Integration-tests: simulation scenarios
+#### AC1.1: Token Contract Initialization
+- [ ] TYC token contract initializes successfully
+- [ ] USDC token contract initializes successfully
+- [ ] Token metadata is correctly set (name, symbol, decimals)
+- [ ] Admin can mint tokens to contract addresses
 
-### File: `integration-tests/src/simulation_scenarios.rs`
+#### AC1.2: Game Contract Initialization with Token References
+- [ ] Game contract initializes with valid TYC token address
+- [ ] Game contract initializes with valid USDC token address
+- [ ] Game contract stores correct reward system address
+- [ ] Game contract owner is correctly set
 
-| # | Criterion | Test name |
-|---|-----------|-----------|
-| 3.1 | Admin withdraw reduces contract balance by the exact withdrawn amount | `admin_withdraw_funds_reduces_contract_balance` |
-| 3.2 | `redeem_voucher_from` is rejected while paused and succeeds after unpause | `reward_redeem_blocked_when_paused` |
-| 3.3 | Replacing backend minter atomically revokes the old minter | `backend_minter_replaced_old_minter_rejected` |
-| 3.4 | `admin_grant_boost` is reflected by `get_boosts` and `get_effective_multiplier` | `boost_grant_and_query_cross_contract` |
-| 3.5 | Three players' vouchers are independent: redeeming one does not affect others | `multi_player_independent_vouchers` |
-| 3.6 | All 18 simulation scenarios pass without flakiness | `cargo test -p tycoon-integration-tests simulation_scenarios` |
-| 3.7 | `cargo check -p tycoon-integration-tests` passes | CI green |
+#### AC1.3: Collectibles Contract Initialization
+- [ ] Collectibles contract initializes with valid admin
+- [ ] Shop can be initialized with valid collectible definitions
+- [ ] Collectibles contract can reference game contract
 
----
+#### AC1.4: Reward System Initialization
+- [ ] Reward system initializes with valid token addresses
+- [ ] Reward system can reference game and collectibles contracts
 
-## SW-CON-004 — Integration-tests: documentation and acceptance criteria
+### 2. Token Interaction Tests
+**File**: `tests/token_interactions.rs`
 
-| # | Criterion | Location |
-|---|-----------|---------|
-| 4.1 | `README.md` lists all simulation scenarios with descriptions | `integration-tests/README.md` scenario table |
-| 4.2 | `README.md` lists all legacy-entrypoints tests | `integration-tests/README.md` scenario table |
-| 4.3 | `README.md` includes run instructions for each test module | `integration-tests/README.md` "Running the tests" section |
-| 4.4 | `ACCEPTANCE_CRITERIA.md` (this file) covers all four SW-CON issues | This document |
-| 4.5 | PR body references Stellar Wave issue IDs (SW-CON-002 – SW-CON-005) | PR description |
-| 4.6 | Each test function has a purpose comment explaining what it verifies | Code review |
+#### AC2.1: Cross-Contract Token Transfers
+- [ ] Game contract can transfer TYC tokens to players
+- [ ] Game contract can transfer USDC tokens to players
+- [ ] Token balances are correctly updated after transfers
+- [ ] Transfer events are emitted with correct data
 
----
+#### AC2.2: Token Allowances and Approvals
+- [ ] Game contract can approve token spending
+- [ ] Reward system can spend approved tokens
+- [ ] Allowance decreases after spending
+- [ ] Spending without approval fails appropriately
 
-## SW-CON-005 — Integration-tests: deprecation path for legacy entrypoints
+#### AC2.3: Token Minting and Burning
+- [ ] Admin can mint tokens to game contract
+- [ ] Game contract can burn tokens (if applicable)
+- [ ] Total supply is correctly updated
+- [ ] Mint/burn events are emitted
 
-### File: `integration-tests/src/legacy_entrypoints.rs`
+### 3. Game Flow Integration Tests
+**File**: `tests/game_flow.rs`
 
-| # | Criterion | Test name |
-|---|-----------|-----------|
-| 5.1 | `redeem_voucher` always panics | `legacy_redeem_voucher_always_panics` |
-| 5.2 | `redeem_voucher` does not transfer any TYC | `legacy_redeem_voucher_does_not_transfer_tokens` |
-| 5.3 | Canonical `redeem_voucher_from` is unaffected by a prior deprecated call | `canonical_redeem_voucher_from_still_works_after_legacy_attempt` |
-| 5.4 | `test_mint` is documented as an unguarded canary | `test_mint_entrypoint_is_unguarded_canary` |
-| 5.5 | `test_burn` is documented as an unguarded canary | `test_burn_entrypoint_is_unguarded_canary` |
-| 5.6 | `test_burn` with zero balance panics (internal guard is active) | `test_burn_insufficient_balance_still_panics` |
-| 5.7 | `test_mint` + `test_burn` leave zero balance and no TYC movement | `test_mint_then_burn_leaves_zero_balance_no_token_movement` |
-| 5.8 | Owner can call `mint_registration_voucher` and voucher is minted | `legacy_mint_registration_voucher_owner_succeeds` |
-| 5.9 | Voucher produced by `mint_registration_voucher` is redeemable | `legacy_mint_registration_voucher_produces_redeemable_voucher` |
-| 5.10 | Deprecated call does not corrupt subsequent canonical flow | `deprecated_call_does_not_corrupt_subsequent_canonical_flow` |
-| 5.11 | `test_mint` voucher has no `VoucherValue` entry; `redeem_voucher_from` panics | `test_mint_voucher_has_no_value_entry_redeem_panics` |
-| 5.12 | `legacy_entrypoints` module is properly declared in `src/lib.rs` | `grep "mod legacy_entrypoints" integration-tests/src/lib.rs` |
-| 5.13 | `cargo test -p tycoon-integration-tests legacy_entrypoints` passes | CI green |
+#### AC3.1: Player Registration Flow
+- [ ] Player can register in game contract
+- [ ] Player receives initial cash allocation
+- [ ] Player data is stored correctly
+- [ ] Duplicate registration is prevented
 
----
+#### AC3.2: Game Creation and Joining
+- [ ] Owner can create a new game
+- [ ] Players can join existing games
+- [ ] Game state transitions correctly (pending → active → completed)
+- [ ] Game capacity limits are enforced
 
-## Cross-cutting acceptance criteria
+#### AC3.3: Game Completion and Rewards
+- [ ] Game can transition to completed state
+- [ ] Winner is correctly identified
+- [ ] Reward tokens are transferred to winner
+- [ ] Game history is recorded
 
-| # | Criterion | Verification |
-|---|-----------|-------------|
-| X.1 | `cargo check` passes for all workspace members | `cd contract && cargo check --all` |
-| X.2 | All tests pass | `cd contract && cargo test --all` |
-| X.3 | No new unaudited oracle or privileged pattern introduced | Code review; `grep -r "invoke_contract" contract/contracts/` shows no new occurrences |
-| X.4 | All PR references include Stellar Wave issue IDs | PR description |
-| X.5 | CI (GitHub Actions `contract-ci.yml`) is green | GitHub Actions check |
+#### AC3.4: Collectibles Integration in Game
+- [ ] Players can purchase collectibles during game
+- [ ] Collectible ownership is transferred correctly
+- [ ] Cash is deducted from player account
+- [ ] Collectible events are emitted
 
----
+### 4. Reward System Integration Tests
+**File**: `tests/reward_system_integration.rs`
 
-## Migration / rollout steps
+#### AC4.1: Voucher Creation and Management
+- [ ] Reward system can create vouchers
+- [ ] Vouchers store correct token and amount
+- [ ] Voucher metadata is accessible
+- [ ] Multiple vouchers can coexist
 
-### SW-CON-002 — Reward system entrypoint rename
+#### AC4.2: Reward Distribution
+- [ ] Game contract can trigger reward distribution
+- [ ] Correct tokens are transferred to players
+- [ ] Reward amounts are accurate
+- [ ] Reward events are emitted
 
-The `admin_*` rename is purely additive on-chain:
+#### AC4.3: Multi-Token Support
+- [ ] Reward system handles TYC tokens
+- [ ] Reward system handles USDC tokens
+- [ ] Token balances are tracked separately
+- [ ] Cross-token operations work correctly
 
-1. **Testnet**: Deploy the updated `tycoon-reward-system` WASM. Both old names (shims) and new `admin_*` names are callable.
-2. **Integrators** (backend, scripts) should migrate calls to `admin_*` variants during the deprecation window.
-3. **Mainnet**: Deploy after testnet validation. The shim functions remain available until the next major upgrade.
-4. **Removal**: In a future major version, remove all `#[deprecated]` shims and bump the WASM version tag.
+#### AC4.4: Reward System Authorization
+- [ ] Only authorized contracts can trigger rewards
+- [ ] Unauthorized calls are rejected
+- [ ] Admin can update authorized contracts
+- [ ] Authorization changes are logged
 
-### SW-CON-005 — Legacy entrypoints
+## Test Execution Requirements
 
-- `redeem_voucher` is already hard-deprecated (always panics). No migration action needed.
-- `test_mint` / `test_burn` are compile-time `#[deprecated]` in `#[cfg(test)]` only. They are not present in the production WASM.
-- `mint_registration_voucher` remains functional; the typed-client migration is tracked as a follow-up item.
+### Build Requirements
+- [ ] `cargo check` passes for all workspace members
+- [ ] `cargo build --target wasm32-unknown-unknown --release` succeeds
+- [ ] No compiler warnings in contract code
+- [ ] WASM artifacts are generated correctly
+
+### Test Requirements
+- [ ] All integration tests pass: `cargo test --test '*' --all`
+- [ ] Unit tests continue to pass: `cargo test --lib --all`
+- [ ] Test coverage includes happy path and error cases
+- [ ] Tests use proper Soroban testutils patterns
+- [ ] Mock authentication is used appropriately
+
+### CI/CD Requirements
+- [ ] GitHub Actions workflow runs all tests
+- [ ] CI passes for all affected packages
+- [ ] Build artifacts are generated
+- [ ] No flaky tests (deterministic results)
+
+## Documentation Requirements
+
+### Code Documentation
+- [ ] Each test function has clear purpose comments
+- [ ] Test helpers are documented with usage examples
+- [ ] Complex test scenarios are explained
+- [ ] Error cases are documented
+
+### PR Requirements
+- [ ] PR references Stellar Wave issue (e.g., SW-CONTRACT-001)
+- [ ] PR body documents rollout/migration steps
+- [ ] PR body lists all acceptance criteria met
+- [ ] PR body includes test execution results
+
+## Security Requirements
+
+### No Unaudited Patterns
+- [ ] No privileged patterns without security review
+- [ ] No oracle integrations without documentation
+- [ ] Authorization checks are properly tested
+- [ ] Access control is enforced in tests
+
+### Best Practices
+- [ ] Follows Stellar/Soroban best practices
+- [ ] Uses safe math operations
+- [ ] Proper error handling in all paths
+- [ ] Events are emitted for all state changes
+
+## Test Data and Fixtures
+
+### Standard Test Setup
+- [ ] Test environment uses `Env::default()`
+- [ ] Mock authentication with `env.mock_all_auths()`
+- [ ] Standard token amounts: 1,000,000 units
+- [ ] Standard player count: 2-4 players per game
+- [ ] Standard game duration: 100 ledger blocks
+
+### Test Addresses
+- [ ] Owner address: `Address::generate(env)`
+- [ ] Player addresses: Generated per test
+- [ ] Admin addresses: Generated per contract
+- [ ] Contract addresses: Registered with `env.register()`
+
+## Success Criteria
+
+All acceptance criteria must be met for PR approval:
+1. ✅ All integration tests pass
+2. ✅ `cargo check` passes
+3. ✅ CI/CD pipeline is green
+4. ✅ Documentation is complete
+5. ✅ PR references Stellar Wave issue
+6. ✅ No security concerns identified
+7. ✅ Code follows Soroban best practices
+
+## Related Issues
+- Stellar Wave: SW-CONTRACT-001
+- Task: Improve integration-tests on Stellar Soroban contracts and tooling
