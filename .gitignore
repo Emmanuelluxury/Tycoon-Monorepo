@@ -14,9 +14,19 @@ frontend_truth/
 **/coverage/
 **/*.tsbuildinfo
 
+# Test snapshots and reports
+**/__snapshots__/
+**/*.snap
+**/test-results/
+**/playwright-report/
+
 # Generated reports
 backend/lint_results.json
 contract/deploy/wasm-size-report.md
+
+# OS / editor noise
+Thumbs.db
+*.pem
 
 # Issue tracking / scratch notes
 vrickish.md

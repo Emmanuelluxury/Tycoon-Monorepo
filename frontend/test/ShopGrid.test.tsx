@@ -22,6 +22,11 @@ vi.mock("@/hooks/useShopTelemetry", () => ({
   }),
 }));
 
+// ─── Mock useShopGridWebVitals (SW-FE-020) ────────────────────────────────────
+vi.mock("@/hooks/useShopGridWebVitals", () => ({
+  useShopGridWebVitals: vi.fn(),
+}));
+
 // ─── Fixtures ──────────────────────────────────────────────────────────────────
 
 const sampleItems: ShopItemData[] = [
