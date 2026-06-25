@@ -537,3 +537,7 @@ mod security_review_tests;
 
 #[cfg(test)]
 mod simulation_scenarios;
+
+/// SW-CT-026: Edge-case unit and integration coverage.
+#[cfg(test)]
+mod edge_case_tests;
