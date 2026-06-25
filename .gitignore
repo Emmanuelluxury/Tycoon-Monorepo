@@ -14,6 +14,23 @@ frontend_truth/
 **/coverage/
 **/*.tsbuildinfo
 
+# Test snapshots
+**/__snapshots__/
+**/*.snap
+
+# Playwright / e2e artifacts
+**/playwright-report/
+**/test-results/
+**/blob-report/
+
+# Storybook build output
+**/storybook-static/
+
+# OS / editor noise
+*.swp
+*.swo
+Thumbs.db
+
 # Generated reports
 backend/lint_results.json
 contract/deploy/wasm-size-report.md

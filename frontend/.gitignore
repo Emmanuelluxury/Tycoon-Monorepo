@@ -40,3 +40,20 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# test snapshots
+**/__snapshots__/
+**/*.snap
+
+# playwright / e2e artifacts
+/playwright-report/
+/test-results/
+/blob-report/
+
+# storybook build
+/storybook-static/
+
+# misc editor / OS
+*.swp
+*.swo
+Thumbs.db
