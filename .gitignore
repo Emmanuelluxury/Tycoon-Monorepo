@@ -14,9 +14,32 @@ frontend_truth/
 **/coverage/
 **/*.tsbuildinfo
 
+# Test snapshots
+**/__snapshots__/
+**/*.snap
+
+# OS / editor noise
+**/.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.tmp
+temp/
+tmp/
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
 # Generated reports
 backend/lint_results.json
 contract/deploy/wasm-size-report.md
 
 # Issue tracking / scratch notes
 vrickish.md
+
+# Lock files from non-primary package managers (keep package-lock.json)
+**/pnpm-lock.yaml
+**/bun.lock

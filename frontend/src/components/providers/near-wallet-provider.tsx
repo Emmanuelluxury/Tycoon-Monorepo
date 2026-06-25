@@ -42,6 +42,7 @@ import {
   trackNearTxSubmitted,
   trackNearTxConfirmed,
   trackNearTxFailed,
+  trackNearWalletInitError,
 } from "@/lib/near/telemetry";
 import { isDepositSafe, sanitizeErrorMessage, MAX_DEPOSIT_YOCTO } from "@/lib/near/security";
 
@@ -145,6 +146,8 @@ export function NearWalletProvider({ children }: { children: React.ReactNode }) 
         if (process.env.NODE_ENV !== "production") {
           console.error(e);
         }
+        // SW-FE-038: track init failures with a non-PII error classifier.
+        trackNearWalletInitError(networkId, "setup_failed");
         setInitError(nearErrorMessage(e));
       }
     })();

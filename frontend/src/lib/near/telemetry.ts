@@ -1,7 +1,7 @@
 /**
  * Privacy-safe telemetry hooks for NEAR wallet lifecycle events.
  *
- * Rules enforced here and by the analytics taxonomy (SW-FE-005):
+ * Rules enforced here and by the analytics taxonomy (SW-FE-005 / SW-FE-038):
  *  - No account IDs, wallet addresses, or transaction hashes are ever sent.
  *  - Only non-linkable fields: network_id, method_name, error_type.
  *  - All payloads pass through sanitizeAnalyticsPayload before dispatch,
@@ -19,6 +19,17 @@ export function trackNearWalletConnected(networkId: NetworkId): void {
 /** Fired when the user signs out of their NEAR wallet. */
 export function trackNearWalletDisconnected(networkId: NetworkId): void {
   track("near_wallet_disconnected", { network_id: networkId });
+}
+
+/**
+ * Fired when the wallet selector fails to initialise.
+ * `errorType` is a non-PII classifier: "setup_failed" | "import_failed" | "unknown".
+ */
+export function trackNearWalletInitError(
+  networkId: NetworkId,
+  errorType: "setup_failed" | "import_failed" | "unknown",
+): void {
+  track("near_wallet_init_error", { network_id: networkId, error_type: errorType });
 }
 
 /** Fired when a contract call is submitted (enters pending state). */
