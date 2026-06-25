@@ -93,6 +93,14 @@ describe("ShopItem", () => {
       expect(card).toHaveAttribute("tabindex", "0");
     });
 
+    test("calls onFocus when the card receives focus", () => {
+      const onFocus = vi.fn();
+      render(<ShopItem {...baseItem} onFocus={onFocus} />);
+      const card = screen.getByTestId("shop-item-1");
+      fireEvent.focus(card);
+      expect(onFocus).toHaveBeenCalledTimes(1);
+    });
+
     test("card supports ref forwarding", () => {
       const ref = { current: null as HTMLDivElement | null };
       render(

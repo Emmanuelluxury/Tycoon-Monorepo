@@ -38,6 +38,8 @@ export interface ShopItemProps extends ShopItemData {
   tabIndex?: number;
   /** Ref forwarded from ShopGrid so it can manage focus */
   itemRef?: React.Ref<HTMLDivElement>;
+  /** Notifies ShopGrid when this card receives focus (click, Tab, etc.) so roving tabindex stays in sync */
+  onFocus?: () => void;
 }
 
 export const ShopItem: React.FC<ShopItemProps> = ({
@@ -51,18 +53,17 @@ export const ShopItem: React.FC<ShopItemProps> = ({
   disabled = false,
   tabIndex,
   itemRef,
+  onFocus,
 }) => {
   const itemId = String(id);
   
   const displayPrice = React.useMemo(() => {
-    try {
-      const p = typeof price === "string" ? parseFloat(price) : price;
-      if (isNaN(p)) return "0.00";
-      return p.toFixed(2);
-    } catch (e) {
+    const p = typeof price === "string" ? parseFloat(price) : price;
+    if (typeof p !== "number" || Number.isNaN(p)) {
       console.error(`Invalid price for item ${itemId}:`, price);
       return "0.00";
     }
+    return p.toFixed(2);
   }, [price, itemId]);
 
   const cardLabel = `${name}, ${rarity} rarity, $${displayPrice}`;
@@ -78,6 +79,7 @@ export const ShopItem: React.FC<ShopItemProps> = ({
       data-testid={`shop-item-${itemId}`}
       aria-label={cardLabel}
       tabIndex={tabIndex ?? 0}
+      onFocus={onFocus}
     >
       {/* Icon and Rarity Badge */}
       <div className="flex items-start justify-between mb-3">

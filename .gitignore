@@ -13,6 +13,12 @@ frontend_truth/
 **/target/
 **/coverage/
 **/*.tsbuildinfo
+**/test-results/
+**/playwright-report/
+**/blob-report/
+**/__snapshots__/
+**/storybook-static/
+**/.eslintcache
 
 # Generated reports
 backend/lint_results.json
