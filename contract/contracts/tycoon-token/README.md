@@ -18,6 +18,7 @@ A SEP-41 compliant fungible token on Stellar Soroban, ported from the ERC-20 Tyc
 - ✅ Admin transfer capability
 - ✅ One-time initialization
 - ✅ Full event emissions (transfer, mint, burn, approve)
+- ✅ **Migration & upgrade governance** (admin-controlled state versioning)
 
 ## Key Differences from Solidity/ERC-20
 
@@ -66,8 +67,10 @@ Initialize token and mint initial supply to admin. Can only be called once.
 ```rust
 mint(to: Address, amount: i128)           // Mint tokens (admin only)
 set_admin(new_admin: Address)             // Transfer admin rights (admin only)
+migrate()                                 // Migrate contract to newer state version (admin only)
 admin() -> Address                        // Get current admin
 total_supply() -> i128                    // Get total supply
+state_version() -> u32                    // Get current state version (public)
 ```
 
 ### SEP-41 Token Operations
@@ -110,6 +113,7 @@ Test modules and coverage:
 | `src/error_branch_tests.rs` | Error path coverage |
 | `src/access_control_tests.rs` | Admin-only vs public entrypoint enforcement |
 | `src/deprecation_tests.rs` | Legacy entrypoint deprecation guards |
+| `src/migration_tests.rs` | Migration & upgrade governance (MIG-01 – MIG-12) |
 | `src/security_review_tests.rs` | Security checklist items SEC-01 – SEC-07 |
 | `src/simulation_scenarios.rs` | End-to-end simulation scenarios (SIM-01 – SIM-05) |
 
@@ -184,6 +188,58 @@ pub fn reward_user(e: &Env, token_address: Address, user: Address, amount: i128)
 }
 ```
 
+## Migration & Upgrade Governance
+
+The TycoonToken contract includes built-in migration support to enable safe contract upgrades without losing state.
+
+### State Versioning
+
+Every contract instance tracks a `StateVersion` that can be queried by any caller:
+
+```bash
+stellar contract invoke --id <CONTRACT_ID> -- state_version
+# Returns: 1 (current version)
+```
+
+### Migrating Legacy Contracts
+
+If you have a legacy contract deployed before state versioning was added (version 0), the admin can migrate it:
+
+```bash
+stellar contract invoke --id <CONTRACT_ID> \
+  --source <ADMIN_SECRET> \
+  --network testnet \
+  -- migrate
+```
+
+**What happens during migration:**
+- Version 0 → 1: Sets the StateVersion to 1 (enables versioning)
+- Version 1 → 1: No-op (safe to call multiple times)
+- Future versions: Placeholder for additional migrations
+
+### Security Model
+
+- **Admin-only**: Only the contract admin can call `migrate()`
+- **Idempotent**: Safe to call multiple times without side effects
+- **State preservation**: All balances, allowances, and total supply are preserved
+- **Non-disruptive**: Token operations continue to work during and after migration
+
+### Testing Migration
+
+The contract includes comprehensive migration tests in `src/migration_tests.rs`:
+
+```bash
+cargo test --package tycoon-token migration_tests
+```
+
+Test coverage includes:
+- Admin authorization enforcement
+- State version tracking
+- V0 to V1 migration
+- Idempotency at V1
+- Balance and allowance preservation
+- Post-migration functionality
+
 ## Security Considerations
 
 - Admin has unlimited minting power - secure admin key properly
@@ -191,6 +247,8 @@ pub fn reward_user(e: &Env, token_address: Address, user: Address, amount: i128)
 - Burning is irreversible and reduces total supply
 - Authorization checks prevent unauthorized operations
 - Overflow protection on all arithmetic operations
+- **Migration governance:** Only admin can upgrade contract state version
+- **State version tracking:** All state changes are versioned for upgrade safety
 
 ## Mint/Burn Invariants
 
