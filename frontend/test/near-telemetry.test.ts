@@ -9,6 +9,7 @@ import { track } from "@/lib/analytics/client";
 import {
   trackNearWalletConnected,
   trackNearWalletDisconnected,
+  trackNearWalletInitError,
   trackNearTxSubmitted,
   trackNearTxConfirmed,
   trackNearTxFailed,
@@ -47,6 +48,28 @@ describe("trackNearWalletDisconnected", () => {
     expect(mockTrack).toHaveBeenCalledOnce();
     expect(mockTrack).toHaveBeenCalledWith("near_wallet_disconnected", {
       network_id: "testnet",
+    });
+  });
+});
+
+describe("trackNearWalletInitError", () => {
+  it("calls track with near_wallet_init_error, network_id and error_type", () => {
+    trackNearWalletInitError("testnet", "setup_failed");
+    expect(mockTrack).toHaveBeenCalledWith("near_wallet_init_error", {
+      network_id: "testnet",
+      error_type: "setup_failed",
+    });
+  });
+
+  it.each([
+    ["setup_failed"],
+    ["import_failed"],
+    ["unknown"],
+  ] as const)("accepts error_type=%s", (errorType) => {
+    trackNearWalletInitError("testnet", errorType);
+    expect(mockTrack).toHaveBeenCalledWith("near_wallet_init_error", {
+      network_id: "testnet",
+      error_type: errorType,
     });
   });
 });
@@ -90,6 +113,13 @@ describe("PII safety — taxonomy schema for NEAR events", () => {
   it("near_wallet_connected schema contains no PII fields", async () => {
     const { analyticsEventSchema } = await import("@/lib/analytics/taxonomy");
     const fields = analyticsEventSchema.near_wallet_connected as readonly string[];
+    const pii = ["account_id", "wallet_address", "email", "token", "hash"];
+    pii.forEach((f) => expect(fields).not.toContain(f));
+  });
+
+  it("near_wallet_init_error schema contains no PII fields", async () => {
+    const { analyticsEventSchema } = await import("@/lib/analytics/taxonomy");
+    const fields = analyticsEventSchema.near_wallet_init_error as readonly string[];
     const pii = ["account_id", "wallet_address", "email", "token", "hash"];
     pii.forEach((f) => expect(fields).not.toContain(f));
   });

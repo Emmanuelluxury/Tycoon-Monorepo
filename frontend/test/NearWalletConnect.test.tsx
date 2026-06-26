@@ -76,7 +76,9 @@ describe("NearWalletConnect", () => {
     expect(
       screen.getByText(/Preparing NEAR wallet support/i),
     ).toBeInTheDocument();
-    expect(screen.getByTestId("near-wallet-empty-state")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("near-wallet-loading-state"),
+    ).toBeInTheDocument();
   });
 
   it("shows the init error state instead of the empty state", () => {
@@ -88,6 +90,7 @@ describe("NearWalletConnect", () => {
     );
 
     expect(screen.getByRole("alert")).toHaveTextContent("Wallet init failed");
+    expect(screen.queryByTestId("near-wallet-loading-state")).toBeNull();
     expect(screen.queryByTestId("near-wallet-empty-state")).toBeNull();
   });
 
@@ -96,6 +99,33 @@ describe("NearWalletConnect", () => {
       createMockNearWalletValue({ initError: "Wallet init failed" }),
     );
     expect(screen.getByRole("alert")).toHaveTextContent("Wallet init failed");
+  });
+
+  it("error state has data-testid=near-wallet-error-state", () => {
+    renderWithMock(
+      createMockNearWalletValue({ initError: "Wallet init failed" }),
+    );
+    expect(screen.getByTestId("near-wallet-error-state")).toBeInTheDocument();
+  });
+
+  it("error state shows a Retry button", () => {
+    renderWithMock(
+      createMockNearWalletValue({ initError: "Wallet init failed" }),
+    );
+    expect(
+      screen.getByRole("button", { name: /retry near wallet connection/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("retry button calls connect when clicked", async () => {
+    const connect = vi.fn();
+    renderWithMock(
+      createMockNearWalletValue({ initError: "Wallet init failed", connect }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: /retry near wallet connection/i }),
+    );
+    expect(connect).toHaveBeenCalledTimes(1);
   });
 
   it("account badge has aria-label with full account id", () => {

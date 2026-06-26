@@ -19,6 +19,7 @@ import { User } from '../users/entities/user.entity';
 import { Role } from './enums/role.enum';
 import { AuthAuditService } from './audit/auth-audit.service';
 import { AuthAuditEvent } from './audit/auth-audit.events';
+import { AuthObservabilityService } from './auth-observability.service';
 
 @Injectable()
 export class AuthService {
@@ -33,6 +34,7 @@ export class AuthService {
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
     private readonly authAudit: AuthAuditService,
+    private readonly authObservability: AuthObservabilityService,
   ) {}
 
   async validateUser(
@@ -55,6 +57,7 @@ export class AuthService {
         ipAddress,
         userAgent,
       });
+      this.authObservability.record(AuthAuditEvent.LOGIN_SUSPENDED);
       return null;
     }
 
@@ -74,6 +77,7 @@ export class AuthService {
       ipAddress,
       userAgent,
     });
+    this.authObservability.record(AuthAuditEvent.LOGIN_FAILED);
     return null;
   }
 
@@ -98,6 +102,7 @@ export class AuthService {
         userAgent,
         meta: { isAdmin: true },
       });
+      this.authObservability.record(AuthAuditEvent.LOGIN_SUSPENDED);
       return null;
     }
 
@@ -122,6 +127,7 @@ export class AuthService {
       userAgent,
       meta: { isAdmin: true },
     });
+    this.authObservability.record(AuthAuditEvent.LOGIN_FAILED);
     return null;
   }
 
@@ -146,6 +152,7 @@ export class AuthService {
       ipAddress,
       userAgent,
     });
+    this.authObservability.record(AuthAuditEvent.LOGIN_SUCCESS);
 
     return {
       accessToken,
@@ -166,6 +173,7 @@ export class AuthService {
         userAgent,
         meta: { chain },
       });
+      this.authObservability.record(AuthAuditEvent.WALLET_LOGIN_FAILED);
       throw new NotFoundException('Invalid address/chain combination');
     }
 
@@ -184,6 +192,7 @@ export class AuthService {
       userAgent,
       meta: { chain },
     });
+    this.authObservability.record(AuthAuditEvent.WALLET_LOGIN_SUCCESS);
 
     return {
       accessToken,
@@ -267,6 +276,7 @@ export class AuthService {
         ipAddress,
         userAgent,
       });
+      this.authObservability.record(AuthAuditEvent.TOKEN_REUSE_DETECTED);
 
       throw new UnauthorizedException('Token reuse detected');
     }
@@ -278,6 +288,7 @@ export class AuthService {
         userAgent,
         meta: { reason: 'expired' },
       });
+      this.authObservability.record(AuthAuditEvent.TOKEN_REFRESH_FAILED);
       throw new UnauthorizedException('Refresh token expired');
     }
 
@@ -305,6 +316,7 @@ export class AuthService {
       ipAddress,
       userAgent,
     });
+    this.authObservability.record(AuthAuditEvent.TOKEN_REFRESHED);
 
     return {
       accessToken,
@@ -322,6 +334,7 @@ export class AuthService {
       ipAddress,
       userAgent,
     });
+    this.authObservability.record(AuthAuditEvent.LOGOUT);
   }
 
   async hashPassword(password: string): Promise<string> {
