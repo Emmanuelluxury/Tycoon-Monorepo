@@ -18,10 +18,19 @@ const idempotencyCache = new Map<string, object>();
 
 export const shopHandlers = [
   // GET /api/shop/items — paginated list
-  http.get(/\/api\/shop\/items(\?.*)?$/, () => {
+  http.get(/\/api\/shop\/items(\?.*)?$/, ({ request }) => {
+    const url = new URL(request.url);
+
+    if (url.searchParams.get('error') === 'true') {
+      return HttpResponse.json(SHOP_ITEMS_ERROR, { status: 500 });
+    }
+
+    const items =
+      url.searchParams.get('empty') === 'true' ? [] : mockShopItems;
+
     return HttpResponse.json({
-      data: mockShopItems,
-      total: mockShopItems.length,
+      data: items,
+      total: items.length,
       page: 1,
       limit: LIMIT,
     });

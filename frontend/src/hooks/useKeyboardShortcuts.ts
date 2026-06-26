@@ -9,6 +9,8 @@ export interface OverlayShortcuts {
   onSettings?: () => void;
   /** Open / close the help / cheat-sheet overlay (default: `?`) */
   onHelp?: () => void;
+  /** Close the active overlay (default: `Escape`) */
+  onClose?: () => void;
 }
 
 /**
@@ -21,7 +23,7 @@ export interface OverlayShortcuts {
  * All handlers are optional — only the ones provided are registered.
  */
 export function useKeyboardShortcuts(shortcuts: OverlayShortcuts): void {
-  const { onInventory, onShop, onSettings, onHelp } = shortcuts;
+  const { onInventory, onShop, onSettings, onHelp, onClose } = shortcuts;
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -40,6 +42,9 @@ export function useKeyboardShortcuts(shortcuts: OverlayShortcuts): void {
       if (e.ctrlKey || e.altKey || e.metaKey) return;
 
       switch (e.key) {
+        case 'Escape':
+          onClose?.();
+          break;
         case 'i':
         case 'I':
           onInventory?.();
@@ -56,7 +61,7 @@ export function useKeyboardShortcuts(shortcuts: OverlayShortcuts): void {
           break;
       }
     },
-    [onInventory, onShop, onSettings, onHelp],
+    [onInventory, onShop, onSettings, onHelp, onClose],
   );
 
   useEffect(() => {

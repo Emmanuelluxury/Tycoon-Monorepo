@@ -5,8 +5,9 @@
  */
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 
 interface TourStep {
   id: string;
@@ -28,7 +29,7 @@ const TOUR_STEPS: TourStep[] = [
     id: "properties",
     title: "Properties",
     description: "Buy properties to build your empire. Different colors represent different property groups.",
-    targetSelector: "[data-square-type='property']",
+    targetSelector: "[data-type='property']",
     position: "top",
   },
   {
@@ -73,6 +74,7 @@ export default function OnboardingTour({ onComplete, onSkip }: OnboardingTourPro
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const [targetElement, setTargetElement] = useState<HTMLElement | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   const getStorageKey = useCallback(() => {
     return user?.id ? `onboarding_tour_completed_${user.id}` : "onboarding_tour_completed_guest";
@@ -81,6 +83,35 @@ export default function OnboardingTour({ onComplete, onSkip }: OnboardingTourPro
   const getDontShowKey = useCallback(() => {
     return user?.id ? `onboarding_tour_dont_show_${user.id}` : "onboarding_tour_dont_show_guest";
   }, [user?.id]);
+
+  const trackAnalyticsEvent = useCallback((eventName: string, data: Record<string, unknown>) => {
+    console.log(`[Analytics] ${eventName}`, {
+      ...data,
+      userId: user?.id || "guest",
+      timestamp: new Date().toISOString(),
+    });
+
+    fetch("/api/analytics/tour", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event: eventName,
+        data,
+        userId: user?.id,
+      }),
+    }).catch((err) => console.error("Analytics error:", err));
+  }, [user?.id]);
+
+  const handleSkip = useCallback(() => {
+    if (dontShowAgain) {
+      localStorage.setItem(getDontShowKey(), "true");
+    }
+    setIsVisible(false);
+    trackAnalyticsEvent("tour_skipped", { step: currentStep });
+    onSkip?.();
+  }, [dontShowAgain, currentStep, getDontShowKey, onSkip, trackAnalyticsEvent]);
+
+  useFocusTrap(dialogRef, isVisible, handleSkip);
 
   useEffect(() => {
     const completed = localStorage.getItem(getStorageKey());
@@ -99,9 +130,10 @@ export default function OnboardingTour({ onComplete, onSkip }: OnboardingTourPro
     if (!isVisible || currentStep >= TOUR_STEPS.length) return;
 
     const step = TOUR_STEPS[currentStep];
-    const element = document.querySelector(step.targetSelector) as HTMLElement;
-    
-    if (element) {
+    if (!step) return;
+
+    const element = document.querySelector(step.targetSelector);
+    if (!(element instanceof HTMLElement)) return;
       setTargetElement(element);
       updateTooltipPosition(element, step.position);
       
@@ -110,15 +142,12 @@ export default function OnboardingTour({ onComplete, onSkip }: OnboardingTourPro
       element.style.zIndex = "60";
       element.style.boxShadow = "0 0 0 4px rgba(0, 240, 255, 0.5), 0 0 20px rgba(0, 240, 255, 0.3)";
       element.style.borderRadius = "4px";
-    }
 
     return () => {
-      if (element) {
-        element.style.position = "";
-        element.style.zIndex = "";
-        element.style.boxShadow = "";
-        element.style.borderRadius = "";
-      }
+      element.style.position = "";
+      element.style.zIndex = "";
+      element.style.boxShadow = "";
+      element.style.borderRadius = "";
     };
   }, [isVisible, currentStep]);
 
@@ -176,13 +205,8 @@ export default function OnboardingTour({ onComplete, onSkip }: OnboardingTourPro
     }
   };
 
-  const handleSkip = () => {
-    if (dontShowAgain) {
-      localStorage.setItem(getDontShowKey(), "true");
-    }
-    setIsVisible(false);
-    trackAnalyticsEvent("tour_skipped", { step: currentStep });
-    onSkip?.();
+  const handleSkipClick = () => {
+    handleSkip();
   };
 
   const completeTour = () => {
@@ -195,29 +219,10 @@ export default function OnboardingTour({ onComplete, onSkip }: OnboardingTourPro
     onComplete?.();
   };
 
-  const trackAnalyticsEvent = (eventName: string, data: Record<string, unknown>) => {
-    // Analytics tracking - can be integrated with any analytics provider
-    console.log(`[Analytics] ${eventName}`, {
-      ...data,
-      userId: user?.id || "guest",
-      timestamp: new Date().toISOString(),
-    });
-    
-    // Send to backend analytics endpoint
-    fetch("/api/analytics/tour", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        event: eventName,
-        data,
-        userId: user?.id,
-      }),
-    }).catch((err) => console.error("Analytics error:", err));
-  };
-
   if (!isVisible) return null;
 
   const step = TOUR_STEPS[currentStep];
+  if (!step) return null;
   const progress = ((currentStep + 1) / TOUR_STEPS.length) * 100;
 
   return (
@@ -225,12 +230,13 @@ export default function OnboardingTour({ onComplete, onSkip }: OnboardingTourPro
       {/* Overlay */}
       <div
         className="fixed inset-0 bg-black/60 z-50"
-        onClick={handleSkip}
+        onClick={handleSkipClick}
         aria-hidden="true"
       />
 
       {/* Tooltip */}
       <div
+        ref={dialogRef}
         className="fixed z-[60] w-[320px] max-w-[calc(100vw-32px)] bg-[#0A1A1B] border border-[#00F0FF]/30 rounded-xl shadow-2xl p-4 sm:p-5"
         style={{
           top: `${tooltipPosition.top}px`,
@@ -242,7 +248,14 @@ export default function OnboardingTour({ onComplete, onSkip }: OnboardingTourPro
         aria-describedby="tour-description"
       >
         {/* Progress bar */}
-        <div className="w-full h-1 bg-[#003B3E] rounded-full mb-4">
+        <div
+          className="w-full h-1 bg-[#003B3E] rounded-full mb-4"
+          role="progressbar"
+          aria-valuenow={currentStep + 1}
+          aria-valuemin={1}
+          aria-valuemax={TOUR_STEPS.length}
+          aria-label={`Tour progress: step ${currentStep + 1} of ${TOUR_STEPS.length}`}
+        >
           <div
             className="h-full bg-[#00F0FF] rounded-full transition-all duration-300"
             style={{ width: `${progress}%` }}
@@ -255,7 +268,7 @@ export default function OnboardingTour({ onComplete, onSkip }: OnboardingTourPro
             Step {currentStep + 1} of {TOUR_STEPS.length}
           </span>
           <button
-            onClick={handleSkip}
+            onClick={handleSkipClick}
             className="text-xs text-[#00F0FF]/70 hover:text-[#00F0FF] transition-colors"
             aria-label="Skip tour"
           >

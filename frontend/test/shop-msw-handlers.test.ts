@@ -102,6 +102,22 @@ describe('GET /api/shop/items', () => {
     const body: PaginatedResponse<ShopItemResponse> = await res.json();
     expect(body.data).toHaveLength(mockShopItems.length);
   });
+
+  it('returns 500 when ?error=true (SW-FE-021)', async () => {
+    const res = await fetch(`${BASE}/shop/items?error=true`);
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body).toHaveProperty('statusCode', 500);
+    expect(body).toHaveProperty('message');
+  });
+
+  it('returns empty data when ?empty=true (SW-FE-021)', async () => {
+    const res = await fetch(`${BASE}/shop/items?empty=true`);
+    expect(res.status).toBe(200);
+    const body: PaginatedResponse<ShopItemResponse> = await res.json();
+    expect(body.data).toHaveLength(0);
+    expect(body.total).toBe(0);
+  });
 });
 
 // ── GET /api/shop/inventory ───────────────────────────────────────────────────

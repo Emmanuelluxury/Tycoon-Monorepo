@@ -256,6 +256,7 @@ export const ShopGrid: React.FC<ShopGridProps> = ({
         <div
           className="flex flex-col items-center justify-center py-12 gap-4 px-4"
           data-testid="shop-grid-empty"
+          aria-label="No shop items available"
         >
           <Package
             className="w-12 h-12 text-gray-400 dark:text-gray-600"
