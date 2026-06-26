@@ -80,3 +80,16 @@
 | SEC-02 | Low | `additive_total += boost.value` wraps on `u32` overflow | Documented by test; fix tracked |
 | SEC-03 | Low | Final mixed-stacking cast `as u32` silently truncates | Documented by test; fix tracked |
 | SEC-04 | Info | Admin key is immutable — no rotation path | Accepted for current scope |
+
+---
+
+## Test Coverage Index (SW-CT-025 / SW-CT-026 / SW-CT-027)
+
+| File | Coverage area |
+|------|---------------|
+| `src/security_review_tests.rs` | All checklist items above |
+| `src/edge_case_tests.rs` | EC-01–EC-20: expiry boundary, revoke no-op, override semantics, stacking paths |
+| `src/simulation_scenarios.rs` | SIM-01–SIM-12: end-to-end game session scenarios |
+| `src/advanced_integration_tests.rs` | Stress, multi-player, complex calc, event emission |
+| `src/cap_stacking_expiry_tests.rs` | Cap + stacking + expiry interactions |
+| `src/time_boundary_tests.rs` | Ledger sequence boundary cases |

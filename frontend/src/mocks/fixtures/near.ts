@@ -1,41 +1,53 @@
 /**
- * NEAR wallet auth fixtures — aligned with POST /auth/wallet-login MSW handler.
- * SW-FE-040: MSW fixtures parity with API.
+ * SW-FE-040: NEAR wallet connect — MSW fixtures parity with API.
+ *
+ * Shapes match backend auth.controller wallet-login responses (camelCase).
  */
 
-export interface MockWalletLoginUser {
+export const NEAR_WALLET_FIXTURE_ADDRESSES = {
+  valid: 'player.testnet',
+  invalid: 'invalid-wallet.near',
+} as const;
+
+export interface WalletLoginUserFixture {
   id: number;
   username: string;
   address: string;
   chain: string;
 }
 
-export interface MockWalletLoginResponse {
+export interface WalletLoginSuccessResponse {
   accessToken: string;
   refreshToken: string;
-  user: MockWalletLoginUser;
+  user: WalletLoginUserFixture;
 }
 
-export const mockNearWalletLoginResponse: MockWalletLoginResponse = {
-  accessToken: "mock-near-access-token",
-  refreshToken: "mock-near-refresh-token",
-  user: {
-    id: 1,
-    username: "nearPlayer",
-    address: "test.near",
-    chain: "NEAR",
-  },
+export const mockNearWalletUser: WalletLoginUserFixture = {
+  id: 1,
+  username: 'near_player',
+  address: NEAR_WALLET_FIXTURE_ADDRESSES.valid,
+  chain: 'NEAR',
 };
 
-export const mockEvmWalletLoginResponse: MockWalletLoginResponse = {
-  accessToken: "mock-evm-access-token",
-  refreshToken: "mock-evm-refresh-token",
-  user: {
-    id: 2,
-    username: "evmPlayer",
-    address: "0xAbCd1234EF567890",
-    chain: "BASE",
-  },
+export const mockWalletLoginSuccess: WalletLoginSuccessResponse = {
+  accessToken: 'mock-near-access-token',
+  refreshToken: 'mock-near-refresh-token',
+  user: mockNearWalletUser,
 };
 
-export const NEAR_CHAIN_IDS = ["NEAR", "near"] as const;
+export const mockWalletLoginNotFound = {
+  statusCode: 404,
+  message: 'Invalid address/chain combination',
+  error: 'Not Found',
+};
+
+export const mockWalletLoginBadRequest = {
+  statusCode: 400,
+  message: ['address should not be empty', 'chain should not be empty'],
+  error: 'Bad Request',
+};
+
+export const mockAuthRefreshSuccess = {
+  accessToken: 'mock-refreshed-access-token',
+  refreshToken: 'mock-refreshed-refresh-token',
+};

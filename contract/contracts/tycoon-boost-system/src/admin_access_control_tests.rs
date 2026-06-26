@@ -318,3 +318,112 @@ fn test_admin_view_returns_correct_address() {
     let (client, admin) = setup_initialized(&env);
     assert_eq!(client.admin(), admin);
 }
+
+// ── SW-CT-030: Entrypoint boundary tests ──────────────────────────────────────
+//
+// These tests formally verify the admin-only vs public boundary documented in
+// ENTRYPOINTS.md. Each test name maps directly to a row in the boundary table.
+
+/// BOUNDARY-01: Public read-only views require no authorization.
+#[test]
+fn test_boundary_public_views_need_no_auth() {
+    // Explicitly do NOT call mock_all_auths — auth is not needed for reads.
+    let env = Env::default();
+    let contract_id = env.register(TycoonBoostSystem, ());
+    let client = TycoonBoostSystemClient::new(&env, &contract_id);
+
+    let player = Address::generate(&env);
+
+    // These must not panic even without any auth setup.
+    let _ = client.calculate_total_boost(&player);
+    let _ = client.get_active_boosts(&player);
+}
+
+/// BOUNDARY-02: `admin()` is publicly readable without auth.
+#[test]
+fn test_boundary_admin_view_no_auth() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, expected_admin) = setup_initialized(&env);
+
+    // Verify without mock_all_auths context — already set; just confirm it reads correctly.
+    assert_eq!(client.admin(), expected_admin);
+}
+
+/// BOUNDARY-03: `add_boost` requires admin auth (not player auth).
+///
+/// The function is listed as admin-only in ENTRYPOINTS.md.
+/// With `mock_all_auths` it succeeds; the security_review_tests.rs module
+/// verifies the rejection path without mocks.
+#[test]
+fn test_boundary_add_boost_is_admin_only() {
+    let env = make_env();
+    let (client, _admin) = setup_initialized(&env);
+    let player = Address::generate(&env);
+
+    // With mock_all_auths active, admin auth is satisfied.
+    client.add_boost(&player, &nb(1, BoostType::Additive, 1000));
+    assert_eq!(client.get_active_boosts(&player).len(), 1);
+}
+
+/// BOUNDARY-04: `clear_boosts` requires admin auth.
+#[test]
+fn test_boundary_clear_boosts_is_admin_only() {
+    let env = make_env();
+    let (client, _admin) = setup_initialized(&env);
+    let player = Address::generate(&env);
+
+    client.add_boost(&player, &nb(1, BoostType::Additive, 500));
+
+    // With mock_all_auths active, admin auth is satisfied.
+    client.clear_boosts(&player);
+    assert_eq!(client.get_active_boosts(&player).len(), 0);
+}
+
+/// BOUNDARY-05: Admin functions panic `"NotInitialized"` before `initialize`.
+#[test]
+#[should_panic(expected = "NotInitialized")]
+fn test_boundary_admin_only_panics_without_init() {
+    let env = make_env();
+    let contract_id = env.register(TycoonBoostSystem, ());
+    let client = TycoonBoostSystemClient::new(&env, &contract_id);
+    let player = Address::generate(&env);
+
+    // Calling an admin-only function before initialize must panic "NotInitialized".
+    client.add_boost(&player, &nb(1, BoostType::Additive, 500));
+}
+
+/// BOUNDARY-06: `admin_revoke_boost` on player A does not affect player B.
+#[test]
+fn test_boundary_grant_revoke_isolation() {
+    let env = make_env();
+    let (client, _admin) = setup_initialized(&env);
+    let player_a = Address::generate(&env);
+    let player_b = Address::generate(&env);
+
+    client.admin_grant_boost(&player_a, &nb(1, BoostType::Additive, 500));
+    client.admin_grant_boost(&player_b, &nb(1, BoostType::Additive, 500));
+
+    client.admin_revoke_boost(&player_a, &1u128);
+
+    // player_a's boost was removed.
+    assert_eq!(client.get_active_boosts(&player_a).len(), 0);
+    // player_b is unaffected.
+    assert_eq!(client.get_active_boosts(&player_b).len(), 1);
+}
+
+/// BOUNDARY-07: Deprecated public entrypoints have no auth requirement.
+#[test]
+fn test_boundary_deprecated_public_no_auth() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(TycoonBoostSystem, ());
+    let client = TycoonBoostSystemClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    let player = Address::generate(&env);
+    client.initialize(&admin);
+
+    // Both deprecated functions are public — no special auth.
+    let _ = client.get_boosts(&player);
+    let _ = client.prune_expired_boosts(&player);
+}

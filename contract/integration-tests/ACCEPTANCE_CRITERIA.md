@@ -3,6 +3,17 @@
 ## Overview
 This document defines the acceptance criteria for Soroban contract integration tests as part of the Stellar Wave engineering batch (SW-CONTRACT-001).
 
+## Stellar Wave Hygiene Mapping
+
+| Work item | Issue reference | Coverage surface |
+|-----------|-----------------|------------------|
+| Unit / integration coverage | SW-CT-038 | `src/unit_coverage.rs`, shared `Fixture`, `cargo test --package tycoon-integration-tests` |
+| Simulation scenarios | SW-FE-001 | `src/simulation_scenarios.rs` realistic voucher, reward, player, cash tier, and migration flows |
+| Documentation and acceptance criteria | SW-CONTRACT-001 | This file plus `../PR_BODY_STELLAR_WAVE_HYGIENE.md` |
+| Deprecation path for legacy entrypoints | SW-CONTRACT-001 | `src/legacy_entrypoints.rs`, now registered by `src/lib.rs` |
+
+No acceptance item in this batch introduces a new oracle integration or unaudited production privilege. Existing legacy risks are documented in `../MIGRATION_LEGACY_ENTRYPOINTS.md`.
+
 ## Test Scope
 
 ### 1. Cross-Contract Integration Tests

@@ -104,6 +104,7 @@ export default function GameBoard(): React.JSX.Element {
   const [focusedPosition, setFocusedPosition] = useState<number | null>(null);
   const boardRef = useRef<HTMLDivElement>(null);
   const shopOverlayRef = useRef<HTMLDivElement>(null);
+  const squareRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
   const closeOverlay = useCallback(() => {
     setActiveOverlay(null);
@@ -127,13 +128,15 @@ export default function GameBoard(): React.JSX.Element {
     onShop: () => toggleOverlay('shop'),
     onSettings: () => toggleOverlay('settings'),
     onHelp: () => toggleOverlay('help'),
+    onClose: activeOverlay !== null ? closeOverlay : undefined,
   });
 
-  useEffect(() => {
-    if (focusedPosition === null) return;
-    const cell = document.getElementById(`board-square-${focusedPosition}`);
-    cell?.focus();
-  }, [focusedPosition]);
+  const focusSquare = useCallback((position: number) => {
+    const el = squareRefs.current.get(position);
+    if (el) {
+      el.focus();
+    }
+  }, []);
 
   const handleBoardKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (focusedPosition === null) return;
@@ -147,19 +150,24 @@ export default function GameBoard(): React.JSX.Element {
         newPosition = focusedPosition === 0 ? 39 : focusedPosition - 1;
         break;
       case 'ArrowUp':
-        // Navigate to previous row in grid, but since it's a track, maybe cycle
-        // For simplicity, move to previous square
         newPosition = focusedPosition === 0 ? 39 : focusedPosition - 1;
         break;
       case 'ArrowDown':
         newPosition = (focusedPosition + 1) % 40;
+        break;
+      case 'Home':
+        newPosition = 0;
+        break;
+      case 'End':
+        newPosition = 39;
         break;
       default:
         return;
     }
     e.preventDefault();
     setFocusedPosition(newPosition);
-  }, [focusedPosition]);
+    focusSquare(newPosition);
+  }, [focusedPosition, focusSquare]);
 
   const handleBoardFocus = () => {
     if (focusedPosition === null) {
@@ -228,6 +236,13 @@ export default function GameBoard(): React.JSX.Element {
                     color={track.color}
                     isFocused={focusedPosition === track.position}
                     onFocus={() => setFocusedPosition(track.position)}
+                    squareRef={(el) => {
+                      if (el) {
+                        squareRefs.current.set(track.position, el);
+                      } else {
+                        squareRefs.current.delete(track.position);
+                      }
+                    }}
                   />
                 </div>
               );
@@ -245,11 +260,13 @@ export default function GameBoard(): React.JSX.Element {
         {activeOverlay === 'shop' && (
           <div
             ref={shopOverlayRef}
+            className="absolute inset-0 z-40 bg-[var(--tycoon-bg)] overflow-y-auto pt-16"
             role="dialog"
             aria-modal="true"
-            aria-label="Shop"
-            className="absolute inset-0 z-40 bg-[var(--tycoon-bg)] overflow-y-auto pt-16"
+            aria-labelledby="shop-overlay-title"
+            data-testid="shop-overlay"
           >
+            <h2 id="shop-overlay-title" className="sr-only">Shop</h2>
             <button 
               onClick={closeOverlay}
               className="absolute top-4 right-4 z-50 p-2 rounded-full bg-neutral-800 text-white hover:bg-neutral-700 transition-colors"

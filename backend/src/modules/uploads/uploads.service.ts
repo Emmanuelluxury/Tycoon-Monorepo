@@ -14,7 +14,8 @@ import { mkdir, writeFile, readFile, unlink } from 'fs/promises';
 import { join } from 'path';
 import { randomBytes } from 'crypto';
 import { Upload } from './entities/upload.entity';
-import { PaginationDto } from '../../common/dto/pagination.dto';
+import { SortOrder } from '../../common/dto/pagination.dto';
+import { UploadsPaginationDto, UPLOADS_SORT_WHITELIST } from './dto/uploads-pagination.dto';
 import { AuditTrailService } from '../audit-trail/audit-trail.service';
 import { AuditAction } from '../audit-trail/entities/audit-trail.entity';
 
@@ -95,46 +96,49 @@ export class UploadsService {
   }
 
   /**
-   * Get paginated and sorted list of uploads.
+   * Get paginated and stably-sorted list of uploads.
+   *
+   * Stable sort: primary sort on the whitelisted `sortBy` column; secondary
+   * sort always on `id ASC` so that equal primary keys have a deterministic
+   * order across pages.
    */
-  async findAll(paginationDto: PaginationDto) {
-    const { page = 1, limit = 10, sortBy = 'id', sortOrder = 'DESC', search } = paginationDto;
-    const queryBuilder = this.uploadRepository.createQueryBuilder('upload');
+  async findAll(paginationDto: UploadsPaginationDto) {
+    const {
+      page = 1,
+      limit = 10,
+      sortBy = 'id',
+      sortOrder = SortOrder.DESC,
+      search,
+    } = paginationDto;
+
+    // Validate sortBy against whitelist (guard against runtime misuse)
+    const safeSortBy = (UPLOADS_SORT_WHITELIST as readonly string[]).includes(sortBy)
+      ? sortBy
+      : 'id';
+
+    const qb = this.uploadRepository.createQueryBuilder('upload');
 
     if (search) {
-      queryBuilder.andWhere('upload.originalName ILIKE :search OR upload.key ILIKE :search', {
-        search: `%${search}%`,
-      });
+      qb.where(
+        'upload.originalName ILIKE :search OR upload.key ILIKE :search',
+        { search: `%${search}%` },
+      );
     }
 
-    // Stable sorting requirement: always include ID as a secondary sort key if not already primary
-    const order: any = {};
-    order[sortBy] = sortOrder;
-    if (sortBy !== 'id') {
-      order['id'] = 'ASC';
-    }
-
-    const [items, total] = await this.uploadRepository.findAndCount({
-      where: search ? undefined : {}, // findAndCount doesn't take QueryBuilder results directly easily without find
-      // Better use queryBuilder for pagination
-    });
-
-    // Re-doing with query builder for proper pagination and sorting
-    queryBuilder
-      .orderBy(`upload.${sortBy}`, sortOrder as any)
-      .addOrderBy('upload.id', 'ASC') // secondary sort for stability
+    qb.orderBy(`upload.${safeSortBy}`, sortOrder)
+      .addOrderBy('upload.id', 'ASC') // secondary key → stable pagination
       .skip((page - 1) * limit)
       .take(limit);
 
-    const [data, count] = await queryBuilder.getManyAndCount();
+    const [data, total] = await qb.getManyAndCount();
 
     return {
       data,
       meta: {
-        totalItems: count,
+        totalItems: total,
         itemCount: data.length,
         itemsPerPage: limit,
-        totalPages: Math.ceil(count / limit),
+        totalPages: Math.ceil(total / limit),
         currentPage: page,
       },
     };

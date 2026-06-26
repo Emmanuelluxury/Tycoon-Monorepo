@@ -47,6 +47,13 @@ Client Upload -> Validation -> Virus Scan -> Storage -> Signed URL Generation
 | `tycoon_uploads_multer_errors_total` | `code` | Multer limit errors (`LIMIT_FILE_SIZE`, etc.). |
 | `tycoon_uploads_virus_scan_total` | `outcome` | `skipped`, `clean`, `infected`, `error`. |
 
+### Validation and Security Checks
+- Query validation for signed URLs and download tokens is handled by `UploadValidationPipe`.
+- Validation errors are mapped through `UploadsErrorMapperService` and returned as `400 Bad Request`.
+- File uploads are protected by `MaxFileSizeValidator`, `NoExecutableValidator`, and `MagicBytesValidator`.
+- The malware scan is performed by `VirusScanService` before storing any file; scan failures return `422 Unprocessable Entity`.
+- Use `UPLOADS_OBSERVABILITY_ENABLED=false` only when scrapers or metric cardinality become an operational concern; no request-level behavior changes occur.
+
 ### Traces / correlation
 - **`x-request-id`** header (≤128 chars), when present, is reused as `trace_id` in debug logs; otherwise a short random id is generated per request. No OpenTelemetry exporter is added in this batch.
 

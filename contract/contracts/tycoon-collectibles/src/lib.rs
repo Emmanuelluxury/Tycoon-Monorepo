@@ -355,6 +355,11 @@ impl TycoonCollectibles {
         Ok(())
     }
 
+    /// Deprecated public direct mint entrypoint.
+    ///
+    /// Use `buy_collectible_from_shop` for public purchases or `mint_collectible`
+    /// for backend-authorized reward minting.
+    #[deprecated(since = "0.2.0", note = "Use buy_collectible_from_shop for public purchases or mint_collectible for backend reward minting")]
     pub fn buy_collectible(
         env: Env,
         buyer: Address,
@@ -799,9 +804,15 @@ impl TycoonCollectibles {
     }
 }
 
+/// SW-CT-024: Formal entrypoint classification (admin-only / caller-auth / dual-role / public-read).
+/// See ENTRYPOINTS.md for the prose version.
+pub mod entrypoint_summary;
+
 #[cfg(test)]
 mod coverage_tests;
 #[cfg(test)]
 mod entrypoint_auth_tests;
+#[cfg(test)]
+mod simulation_scenarios;
 #[cfg(test)]
 mod test;

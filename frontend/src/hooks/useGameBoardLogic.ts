@@ -108,8 +108,8 @@ const PLACEHOLDER_BOARD: Tile[] = [
 export function useGameBoardLogic(): GameBoardState {
   const players = PLACEHOLDER_PLAYERS;
   const currentPlayer = players[0];
-  if (currentPlayer === undefined) {
-    throw new Error("useGameBoardLogic requires at least one player");
+  if (!currentPlayer) {
+    throw new Error('[useGameBoardLogic] No players available in placeholder data');
   }
   const board = PLACEHOLDER_BOARD;
 

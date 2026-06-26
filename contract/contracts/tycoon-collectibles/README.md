@@ -127,7 +127,9 @@ Errors: `ShopNotInitialized`, `ZeroPrice`, `InsufficientStock`.
 
 #### `buy_collectible(env, buyer: Address, token_id, amount) → Result<(), CollectibleError>`
 
-Direct mint (no payment). Requires buyer authorization. Intended for testing or privileged flows.
+Deprecated public direct mint path (no payment). Requires buyer authorization.
+Use `buy_collectible_from_shop` for public purchases and `mint_collectible` for backend-authorized reward minting.
+This entrypoint is retained temporarily for compatibility and will be removed in a later major release.
 
 ---
 

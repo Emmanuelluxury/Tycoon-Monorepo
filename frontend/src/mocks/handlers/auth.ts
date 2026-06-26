@@ -1,68 +1,51 @@
-import { http, HttpResponse } from 'msw';
-import { isValidNearAccountId } from '@/lib/near/config';
-import { walletLoginSchema } from '@/lib/validation/schemas';
-import {
-  mockEvmWalletLoginResponse,
-  mockNearWalletLoginResponse,
-  NEAR_CHAIN_IDS,
-} from '@/mocks/fixtures/near';
+/**
+ * SW-FE-040: Auth MSW handlers — parity with /api/v1/auth endpoints.
+ */
 
-const EVM_ADDRESS_RE = /^0x[0-9a-fA-F]{1,100}$/;
+import { http, HttpResponse } from 'msw';
+import {
+  mockWalletLoginSuccess,
+  mockWalletLoginNotFound,
+  mockWalletLoginBadRequest,
+  mockAuthRefreshSuccess,
+  NEAR_WALLET_FIXTURE_ADDRESSES,
+} from '../fixtures/near';
 
 export const authHandlers = [
-  http.post('/auth/wallet-login', async ({ request }) => {
-    let body: unknown;
+  // POST /api/v1/auth/wallet-login
+  http.post('*/api/v1/auth/wallet-login', async ({ request }) => {
+    let body: { address?: string; chain?: string } = {};
     try {
-      body = await request.json();
+      body = (await request.json()) as { address?: string; chain?: string };
     } catch {
-      return HttpResponse.json({ message: 'Invalid JSON body' }, { status: 400 });
+      return HttpResponse.json(mockWalletLoginBadRequest, { status: 400 });
     }
 
-    const parsed = walletLoginSchema.safeParse(body);
-    if (!parsed.success) {
-      return HttpResponse.json(
-        {
-          message: 'Validation failed',
-          errors: parsed.error.flatten().fieldErrors,
-        },
-        { status: 400 },
-      );
+    if (!body.address?.trim() || !body.chain?.trim()) {
+      return HttpResponse.json(mockWalletLoginBadRequest, { status: 400 });
     }
 
-    const { address, chain } = parsed.data;
-    const normalizedChain = chain.trim().toUpperCase();
-
-    if (NEAR_CHAIN_IDS.map((c) => c.toUpperCase()).includes(normalizedChain)) {
-      if (!isValidNearAccountId(address)) {
-        return HttpResponse.json(
-          { message: 'address must be a valid NEAR account ID' },
-          { status: 400 },
-        );
-      }
-      return HttpResponse.json({
-        ...mockNearWalletLoginResponse,
-        user: {
-          ...mockNearWalletLoginResponse.user,
-          address,
-          chain: 'NEAR',
-        },
-      });
-    }
-
-    if (!EVM_ADDRESS_RE.test(address)) {
-      return HttpResponse.json(
-        { message: 'address must be a valid hex wallet address starting with 0x' },
-        { status: 400 },
-      );
+    if (body.address === NEAR_WALLET_FIXTURE_ADDRESSES.invalid) {
+      return HttpResponse.json(mockWalletLoginNotFound, { status: 404 });
     }
 
     return HttpResponse.json({
-      ...mockEvmWalletLoginResponse,
+      ...mockWalletLoginSuccess,
       user: {
-        ...mockEvmWalletLoginResponse.user,
-        address,
-        chain: normalizedChain,
+        ...mockWalletLoginSuccess.user,
+        address: body.address,
+        chain: body.chain,
       },
     });
+  }),
+
+  // POST /api/v1/auth/refresh
+  http.post('*/api/v1/auth/refresh', () => {
+    return HttpResponse.json(mockAuthRefreshSuccess);
+  }),
+
+  // POST /api/v1/auth/logout
+  http.post('*/api/v1/auth/logout', () => {
+    return new HttpResponse(null, { status: 204 });
   }),
 ];

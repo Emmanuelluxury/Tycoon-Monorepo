@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased] - SW-CT-021
+
+### Added
+- `src/simulation_scenarios.rs` — 15 multi-step simulation scenarios (SIM-01
+  through SIM-15) exercising realistic usage patterns beyond isolated unit
+  checks:
+  - Shop stock depletion across multiple buyers and recovery via restock.
+  - Fee distribution totals accumulating correctly across several sales.
+  - Mid-session price updates affecting only later purchases.
+  - Independent state across multiple stocked collectibles.
+  - Sequential cash-tiered perk burns paying out the correct tier.
+  - Pause/unpause toggling perk-burn availability mid-session.
+  - Multi-hop transfers keeping ownership enumeration consistent.
+  - Backend minter rotation revoking the old minter and granting the new one.
+  - Sequential `mint_collectible` ID assignment across admin and minter.
+  - Metadata freeze blocking further metadata/URI updates.
+  - Pagination over a large owned-token set with no gaps or duplicates.
+  - `migrate` preserving shop configuration and stock across an upgrade.
+  - Non-tiered perk burns without strength validation.
+  - Concurrent purchases in different currencies sharing one stock counter.
+
 ## [Unreleased] - SW-CT-024
 
 ### Added
@@ -43,6 +64,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 - `ACCEPTANCE_CRITERIA.md` — full acceptance criteria for SW-CT-022 covering all contract functions, error paths, events, and test coverage checklist.
+- Marked `buy_collectible` as deprecated in docs and acceptance criteria; retained ABI compatibility pending migration to `buy_collectible_from_shop` and `mint_collectible`.
 - `README.md` rewritten to document the complete contract interface: lifecycle, shop administration, purchasing (with CEI notes), perk mechanics, backend minting, metadata, enumeration, error reference, event reference, and storage layout.
 - `CHANGELOG.md` updated with this entry.
 - Tests: `test_initialize_already_initialized` — verifies double-init returns `AlreadyInitialized`.

@@ -4,6 +4,7 @@ import { ShopGrid } from "./ShopGrid";
 import { ShopItemData } from "./ShopItem";
 
 vi.mock("@/lib/analytics", () => ({ track: vi.fn() }));
+vi.mock("@/hooks/useShopGridWebVitals", () => ({ useShopGridWebVitals: vi.fn() }));
 
 import { track } from "@/lib/analytics";
 const mockTrack = vi.mocked(track);
@@ -416,6 +417,31 @@ describe("ShopGrid", () => {
       }
 
       expect(cards[0]).toHaveAttribute("tabindex", "0");
+    });
+  });
+
+  describe("Keyboard Navigation — Focus Sync", () => {
+    test("clicking a card updates roving tabindex to that card", () => {
+      render(<ShopGrid items={mockItems} columns={3} />);
+      const cards = screen.getAllByTestId(/^shop-item-\d+$/);
+
+      fireEvent.focus(cards[2]);
+
+      expect(cards[2]).toHaveAttribute("tabindex", "0");
+      expect(cards[0]).toHaveAttribute("tabindex", "-1");
+    });
+
+    test("arrow key navigation continues from the card focused via click/Tab", () => {
+      render(<ShopGrid items={mockItems} columns={3} />);
+      const list = screen.getByRole("list", { name: /shop items/i });
+      const cards = screen.getAllByTestId(/^shop-item-\d+$/);
+
+      // Tab/click focuses the last card directly, bypassing arrow-key navigation.
+      fireEvent.focus(cards[2]);
+      fireEvent.keyDown(list, { key: "ArrowLeft" });
+
+      expect(cards[1]).toHaveAttribute("tabindex", "0");
+      expect(cards[2]).toHaveAttribute("tabindex", "-1");
     });
   });
 

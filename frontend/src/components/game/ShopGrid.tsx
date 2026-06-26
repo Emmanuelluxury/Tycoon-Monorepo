@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useShopTelemetry } from "@/hooks/useShopTelemetry";
+import { useShopGridWebVitals } from "@/hooks/useShopGridWebVitals";
 
 export interface ShopGridProps {
   items?: ShopItemData[];
@@ -53,6 +54,9 @@ export const ShopGrid: React.FC<ShopGridProps> = ({
 
   const { trackGridViewed, trackItemImpression, trackPurchaseInitiated } =
     useShopTelemetry();
+
+  // SW-FE-020: monitor CLS / LCP budget for the shop grid
+  useShopGridWebVitals();
 
   // Fire shop_grid_viewed once when items become visible (not during loading/error).
   const trackedCountRef = useRef<number | null>(null);
@@ -252,6 +256,7 @@ export const ShopGrid: React.FC<ShopGridProps> = ({
         <div
           className="flex flex-col items-center justify-center py-12 gap-4 px-4"
           data-testid="shop-grid-empty"
+          aria-label="No shop items available"
         >
           <Package
             className="w-12 h-12 text-gray-400 dark:text-gray-600"
@@ -292,8 +297,6 @@ export const ShopGrid: React.FC<ShopGridProps> = ({
       >
         {items.map((item, index) => (
           <li key={item.id} role="listitem">
-
-
             <ShopItem
               {...item}
               onPurchase={handlePurchase}
@@ -301,6 +304,7 @@ export const ShopGrid: React.FC<ShopGridProps> = ({
               itemRef={(el) => {
                 itemRefs.current[index] = el;
               }}
+              onFocus={() => setFocusedIndex(index)}
             />
           </li>
         ))}

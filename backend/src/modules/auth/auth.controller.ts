@@ -17,6 +17,8 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { WalletLoginDto } from './dto/wallet-login.dto';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
+import { AuthAuditService } from './audit/auth-audit.service';
+import { AuthAuditEvent } from './audit/auth-audit.events';
 
 interface RequestWithUser {
   user: JwtPayload;
@@ -31,6 +33,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly usersService: UsersService,
+    private readonly authAudit: AuthAuditService,
   ) {}
 
   @Throttle({ default: { limit: 5, ttl: 60000 } })
@@ -91,7 +94,16 @@ export class AuthController {
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
-  async register(@Body() createUserDto: CreateUserDto) {
-    return this.usersService.create(createUserDto);
+  async register(@Body() createUserDto: CreateUserDto, @Req() req: RequestWithUser) {
+    const user = await this.usersService.create(createUserDto);
+    
+    this.authAudit.record(AuthAuditEvent.REGISTER_SUCCESS, {
+      userId: user.id,
+      email: AuthAuditService.redactEmail(user.email),
+      ipAddress: req.ip,
+      userAgent: req.headers?.['user-agent'],
+    });
+
+    return user;
   }
 }

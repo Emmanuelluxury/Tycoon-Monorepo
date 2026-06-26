@@ -29,9 +29,17 @@ vi.mock('@/components/ui/purchase-modal', () => ({
   },
 }));
 
-// Mock the Spinner component
+// Mock the Spinner component (legacy — Marketplace now uses ShopGrid)
 vi.mock('@/components/ui/spinner', () => ({
   Spinner: () => <div data-testid="spinner">Loading...</div>,
+}));
+
+vi.mock('@/hooks/useShopTelemetry', () => ({
+  useShopTelemetry: () => ({
+    trackGridViewed: vi.fn(),
+    trackItemImpression: vi.fn(),
+    trackPurchaseInitiated: vi.fn(),
+  }),
 }));
 
 // Helper to mock fetch responses
@@ -69,15 +77,12 @@ describe('Marketplace Optimistic UI', () => {
     render(<Marketplace />);
     
     // Wait for items to load
-    await waitFor(() => expect(screen.queryByTestId('spinner')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('shop-grid-items')).toBeInTheDocument());
     expect(screen.getByText('Cool Skin')).toBeInTheDocument();
     
-    // Check initial state: Buy button should be present
-    const buyButton = screen.getByLabelText('shop.purchase Cool Skin');
-    expect(buyButton).toBeInTheDocument();
-    expect(buyButton).not.toHaveTextContent('shop.owned');
+    const buyButton = screen.getByLabelText('Buy Cool Skin');
+    expect(buyButton).not.toBeDisabled();
 
-    // 2. Click purchase to open modal
     fireEvent.click(buyButton);
     
     // 3. Mock a failed purchase response for the next fetch call
@@ -99,24 +104,22 @@ describe('Marketplace Optimistic UI', () => {
 
     // 5. CHECK OPTIMISTIC UI: The button should IMMEDIATELY show "Owned" (or equivalent state change)
     // before the fetch completes
-    expect(screen.getAllByText('shop.owned').length).toBeGreaterThan(0);
+    expect(screen.getByTestId('shop-item-buy-1')).toBeDisabled();
 
-    // 6. WAIT FOR ROLLBACK: After the failed fetch, it should revert to previous state
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalled();
       expect(toast.error.mock.calls[0]?.[0]).toBe('Insufficient funds');
-      // The "Owned" text should be gone and replaced by "Purchase" again
-      expect(screen.queryAllByText('shop.owned').length).toBe(0);
+      expect(screen.getByTestId('shop-item-buy-1')).not.toBeDisabled();
     });
     
-    expect(screen.getByLabelText('shop.purchase Cool Skin')).toBeInTheDocument();
+    expect(screen.getByLabelText('Buy Cool Skin')).toBeInTheDocument();
   });
 
   it('performs an optimistic update and stays successful on server success', async () => {
     render(<Marketplace />);
-    await waitFor(() => expect(screen.queryByTestId('spinner')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('shop-grid-items')).toBeInTheDocument());
     
-    const buyButton = screen.getByLabelText('shop.purchase Cool Skin');
+    const buyButton = screen.getByLabelText('Buy Cool Skin');
     fireEvent.click(buyButton);
 
     // Mock successful purchase
@@ -134,15 +137,33 @@ describe('Marketplace Optimistic UI', () => {
     fireEvent.click(confirmButton);
 
     // Optimistic update
-    expect(screen.getAllByText('shop.owned').length).toBeGreaterThan(0);
+    expect(screen.getByTestId('shop-item-buy-1')).toBeDisabled();
 
-    // Stay successful
     await waitFor(() => {
       expect(toast.success).toHaveBeenCalled();
       expect(toast.success.mock.calls[0]?.[0]).toBe(
         'Cool Skin purchased successfully!',
       );
-      expect(screen.getAllByText('shop.owned').length).toBeGreaterThan(0);
+      expect(screen.getByTestId('shop-item-buy-1')).toBeDisabled();
+    });
+  });
+
+  it('shows error state with retry when fetch fails (SW-FE-021)', async () => {
+    global.fetch = mockFetch({ message: 'Server error' }, false, 500);
+    render(<Marketplace />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('shop-grid-error')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('shop-grid-retry-button')).toBeInTheDocument();
+  });
+
+  it('shows empty state when API returns no items (SW-FE-021)', async () => {
+    global.fetch = mockFetch({ data: [] });
+    render(<Marketplace />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('shop-grid-empty')).toBeInTheDocument();
     });
   });
 });
