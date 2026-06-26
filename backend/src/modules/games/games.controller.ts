@@ -9,6 +9,7 @@ import {
   Query,
   UseGuards,
   UseInterceptors,
+  UseFilters,
   Req,
   HttpCode,
   HttpStatus,
@@ -30,6 +31,7 @@ import { GamePlayersService } from './game-players.service';
 import { GamesService } from './games.service';
 import { UpdateGamePlayerDto } from './dto/update-game-player.dto';
 import { GamesAuditInterceptor } from './audit/games-audit.interceptor';
+import { GamesAuditService } from './audit/games-audit.service';
 import { CreateGameDto } from './dto/create-game.dto';
 import { UpdateGameDto } from './dto/update-game.dto';
 import { UpdateGameSettingsDto } from './dto/update-game-settings.dto';
@@ -40,11 +42,13 @@ import { PayRentDto } from './dto/pay-rent.dto';
 import { PayTaxDto } from './dto/pay-tax.dto';
 import { BuyPropertyDto } from './dto/buy-property.dto';
 import { JoinGameDto } from './dto/join-game.dto';
+import { GameValidationFilter } from './filters/game-validation.filter';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Idempotent } from '../../common/decorators/idempotent.decorator';
 import { IdempotencyInterceptor } from '../../common/interceptors/idempotency.interceptor';
 
 @ApiTags('games')
+@UseFilters(GameValidationFilter)
 @UseInterceptors(GamesAuditInterceptor)
 @Controller('games')
 @UseInterceptors(IdempotencyInterceptor)
@@ -52,6 +56,7 @@ export class GamesController {
   constructor(
     private readonly gamePlayersService: GamePlayersService,
     private readonly gamesService: GamesService,
+    private readonly gamesAuditService: GamesAuditService,
   ) {}
 
   @Post()
@@ -93,7 +98,35 @@ export class GamesController {
     @Req() req: Request & { user: { id: number; role?: string } },
   ) {
     const creatorId = req.user.id;
-    return this.gamesService.create(dto, creatorId);
+    const game = await this.gamesService.create(dto, creatorId);
+
+    setImmediate(() => {
+      void this.gamesAuditService.logGameCreation({
+        operation: 'create_game',
+        timestamp: new Date().toISOString(),
+        userId: creatorId,
+        gameId: game.id,
+        gameCode: game.code,
+        mode: game.mode,
+        numberOfPlayers: game.number_of_players,
+        isAi: game.is_ai,
+        isMinipay: game.is_minipay,
+        chain: game.chain ?? undefined,
+        contractGameId: game.contract_game_id ?? undefined,
+        settings: game.settings ?? {
+          auction: true,
+          rentInPrison: false,
+          mortgage: true,
+          evenBuild: true,
+          randomizePlayOrder: true,
+          startingCash: 1500,
+        },
+        ipAddress: (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ?? req.socket.remoteAddress,
+        userAgent: req.headers['user-agent'],
+      });
+    });
+
+    return game;
   }
 
   @Get()
@@ -185,7 +218,41 @@ export class GamesController {
     @Body() dto: JoinGameDto,
     @Req() req: Request & { user: { id: number } },
   ) {
-    return this.gamesService.joinGame(id, req.user.id, dto);
+    const userId = req.user.id;
+    let result: any;
+    try {
+      result = await this.gamesService.joinGame(id, userId, dto);
+    } catch (err) {
+      setImmediate(() => {
+        void this.gamesAuditService.logGameJoin({
+          operation: 'join_game',
+          timestamp: new Date().toISOString(),
+          userId,
+          gameId: id,
+          result: 'failure',
+          reason: err?.message,
+          ipAddress: (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ?? req.socket.remoteAddress,
+          userAgent: req.headers['user-agent'],
+        });
+      });
+      throw err;
+    }
+
+    setImmediate(() => {
+      void this.gamesAuditService.logGameJoin({
+        operation: 'join_game',
+        timestamp: new Date().toISOString(),
+        userId,
+        gameId: id,
+        result: 'success',
+        playerId: result?.id,
+        address: dto.address,
+        ipAddress: (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ?? req.socket.remoteAddress,
+        userAgent: req.headers['user-agent'],
+      });
+    });
+
+    return result;
   }
 
   @Patch(':id/settings')
@@ -225,7 +292,23 @@ export class GamesController {
     @Body() dto: UpdateGameSettingsDto,
     @Req() req: Request & { user: { id: number } },
   ) {
-    return this.gamesService.updateSettings(id, dto, req.user.id);
+    const userId = req.user.id;
+    const result = await this.gamesService.updateSettings(id, dto, userId);
+
+    setImmediate(() => {
+      void this.gamesAuditService.logGameSettingsUpdate({
+        operation: 'update_game_settings',
+        timestamp: new Date().toISOString(),
+        userId,
+        gameId: id,
+        settingsUpdated: Object.keys(dto),
+        newValues: dto as Record<string, any>,
+        ipAddress: (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ?? req.socket.remoteAddress,
+        userAgent: req.headers['user-agent'],
+      });
+    });
+
+    return result;
   }
 
   @Patch(':id')
@@ -258,12 +341,27 @@ export class GamesController {
     @Body() dto: UpdateGameDto,
     @Req() req: Request & { user: { id: number; role?: string } },
   ) {
-    return this.gamesService.update(
-      id,
-      dto,
-      req.user.id,
-      req.user.role ?? 'user',
-    );
+    const userId = req.user.id;
+    const userRole = req.user.role ?? 'user';
+    const result = await this.gamesService.update(id, dto, userId, userRole);
+
+    setImmediate(() => {
+      void this.gamesAuditService.logGameUpdate({
+        operation: 'update_game',
+        timestamp: new Date().toISOString(),
+        userId,
+        gameId: id,
+        fieldsUpdated: Object.keys(dto).filter((k) => (dto as any)[k] !== undefined),
+        newStatus: dto.status,
+        userRole,
+        winnerId: dto.winnerId,
+        nextPlayerId: dto.nextPlayerId,
+        ipAddress: (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ?? req.socket.remoteAddress,
+        userAgent: req.headers['user-agent'],
+      });
+    });
+
+    return result;
   }
 
   @Get(':gameId/players')
@@ -301,12 +399,27 @@ export class GamesController {
     @Param('playerId', ParseIntPipe) playerId: number,
     @Body() dto: RollDiceDto,
   ) {
-    return this.gamePlayersService.rollDice(
+    const result = await this.gamePlayersService.rollDice(
       gameId,
       playerId,
       dto.dice1,
       dto.dice2,
     );
+
+    setImmediate(() => {
+      void this.gamesAuditService.logDiceRoll({
+        operation: 'roll_dice',
+        timestamp: new Date().toISOString(),
+        gameId,
+        playerId,
+        dice1: dto.dice1,
+        dice2: dto.dice2,
+        total: dto.dice1 + dto.dice2,
+        isDoubles: dto.dice1 === dto.dice2,
+      });
+    });
+
+    return result;
   }
 
   @Delete(':gameId/players/me')
@@ -317,6 +430,18 @@ export class GamesController {
     @Req() req: Request & { user: { id: number } },
   ) {
     await this.gamePlayersService.leaveGameForUser(gameId, req.user.id);
+
+    setImmediate(() => {
+      void this.gamesAuditService.logGameLeave({
+        operation: 'leave_game',
+        timestamp: new Date().toISOString(),
+        userId: req.user.id,
+        gameId,
+        playerId: req.user.id,
+        ipAddress: (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ?? req.socket.remoteAddress,
+        userAgent: req.headers['user-agent'],
+      });
+    });
   }
 
   @Post(':gameId/players/:playerId/pay-rent')
@@ -327,12 +452,27 @@ export class GamesController {
     @Param('playerId', ParseIntPipe) playerId: number,
     @Body() dto: PayRentDto,
   ) {
-    return this.gamePlayersService.payRent(
+    const result = await this.gamePlayersService.payRent(
       gameId,
       playerId,
       dto.payeeId,
       dto.baseRent,
     );
+
+    setImmediate(() => {
+      void this.gamesAuditService.logRentPayment({
+        operation: 'pay_rent',
+        timestamp: new Date().toISOString(),
+        gameId,
+        playerId,
+        payerId: playerId,
+        payeeId: dto.payeeId,
+        baseRent: dto.baseRent,
+        finalRent: dto.baseRent,
+      });
+    });
+
+    return result;
   }
 
   @Post(':gameId/players/:playerId/pay-tax')
@@ -343,7 +483,24 @@ export class GamesController {
     @Param('playerId', ParseIntPipe) playerId: number,
     @Body() dto: PayTaxDto,
   ) {
-    return this.gamePlayersService.payTax(gameId, playerId, dto.baseTax);
+    const result = await this.gamePlayersService.payTax(
+      gameId,
+      playerId,
+      dto.baseTax,
+    );
+
+    setImmediate(() => {
+      void this.gamesAuditService.logTaxPayment({
+        operation: 'pay_tax',
+        timestamp: new Date().toISOString(),
+        gameId,
+        playerId,
+        baseTax: dto.baseTax,
+        finalTax: dto.baseTax,
+      });
+    });
+
+    return result;
   }
 
   @Post(':gameId/players/:playerId/buy-property')
@@ -354,11 +511,24 @@ export class GamesController {
     @Param('playerId', ParseIntPipe) playerId: number,
     @Body() dto: BuyPropertyDto,
   ) {
-    return this.gamePlayersService.buyProperty(
+    const result = await this.gamePlayersService.buyProperty(
       gameId,
       playerId,
       dto.propertyCost,
       dto.propertyId,
     );
+
+    setImmediate(() => {
+      void this.gamesAuditService.logPropertyPurchase({
+        operation: 'buy_property',
+        timestamp: new Date().toISOString(),
+        gameId,
+        playerId,
+        propertyId: String(dto.propertyId),
+        cost: dto.propertyCost,
+      });
+    });
+
+    return result;
   }
 }
