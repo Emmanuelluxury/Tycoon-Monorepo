@@ -20,7 +20,7 @@ import {
   sanitiseRoomCode,
 } from "@/lib/join-room/security";
 import { apiClient } from "@/lib/api/client";
-import type { GameResponse } from "@/lib/api/types/dto";
+import type { GamePlayerResponse } from "@/lib/api/types/dto";
 import { useJoinRoomTelemetry } from "@/hooks/useJoinRoomTelemetry";
 import { useErrorReporting } from "@/hooks/useErrorReporting";
 
@@ -112,8 +112,12 @@ export default function JoinRoomForm({
         setErrors({});
         inputRef.current?.blur();
       }
-      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-        formRef.current?.requestSubmit();
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        e.key === "Enter" &&
+        formRef.current?.contains(document.activeElement)
+      ) {
+        formRef.current.requestSubmit();
       }
     };
     document.addEventListener("keydown", handleKeyDown);
@@ -164,7 +168,7 @@ export default function JoinRoomForm({
       try {
         const startTime = typeof performance !== "undefined" ? performance.now() : 0;
 
-        await apiClient.post<GameResponse>(
+        await apiClient.post<GamePlayerResponse>(
           `/games/${encodeURIComponent(result.data.roomCode)}/join`,
           {}
         );

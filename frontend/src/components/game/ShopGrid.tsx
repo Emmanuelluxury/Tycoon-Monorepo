@@ -297,8 +297,6 @@ export const ShopGrid: React.FC<ShopGridProps> = ({
       >
         {items.map((item, index) => (
           <li key={item.id} role="listitem">
-
-
             <ShopItem
               {...item}
               onPurchase={handlePurchase}
@@ -306,6 +304,7 @@ export const ShopGrid: React.FC<ShopGridProps> = ({
               itemRef={(el) => {
                 itemRefs.current[index] = el;
               }}
+              onFocus={() => setFocusedIndex(index)}
             />
           </li>
         ))}
