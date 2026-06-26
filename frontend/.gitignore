@@ -18,12 +18,24 @@
 /test-results/
 /playwright-report/
 
+# test snapshots (Vitest / Jest)
+**/__snapshots__/
+**/*.snap
+
+# Playwright
+/test-results/
+/playwright-report/
+/playwright/.cache/
+
 # next.js
 /.next/
 /out/
 
 # production
 /build
+
+# Storybook build output
+/storybook-static/
 
 # misc
 .DS_Store
