@@ -184,3 +184,32 @@ describe('Runbook self-consistency (SW-BE-006)', () => {
     expect(runbook).not.toMatch(/JWT_SECRET\s*=\s*[a-f0-9]{32,}/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// 6. Force-logout endpoint — runbook §4.5 ↔ AdminAuthController (SW-BE-006)
+// ---------------------------------------------------------------------------
+
+describe('Runbook contract: force-logout endpoint (SW-BE-006)', () => {
+  const runbook = readDoc('docs/AUTH_JWT_RUNBOOK.md');
+  const controllerSrc = readSrc('modules/auth/admin-auth.controller.ts');
+
+  it('runbook documents the revoke-tokens admin API path', () => {
+    expect(runbook).toContain('revoke-tokens');
+  });
+
+  it('AdminAuthController implements the revoke-tokens route', () => {
+    expect(controllerSrc).toContain('revoke-tokens');
+  });
+
+  it('AdminAuthController uses JwtAuthGuard on revoke-tokens', () => {
+    expect(controllerSrc).toContain('JwtAuthGuard');
+  });
+
+  it('AdminAuthController uses AdminGuard on revoke-tokens', () => {
+    expect(controllerSrc).toContain('AdminGuard');
+  });
+
+  it('AdminAuthController records action in admin_logs', () => {
+    expect(controllerSrc).toContain('ADMIN_FORCE_LOGOUT');
+  });
+});

@@ -1,4 +1,10 @@
-import { Controller, Get, UseInterceptors } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  HttpException,
+  HttpStatus,
+  UseInterceptors,
+} from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import { DataSource } from 'typeorm';
@@ -7,20 +13,20 @@ import { RedisService } from '../modules/redis/redis.service';
 import { AuditTrailInterceptor } from '../modules/audit-trail/audit-trail.interceptor';
 import { AuditLog } from '../modules/audit-trail/audit-log.decorator';
 import { AuditAction } from '../modules/audit-trail/entities/audit-trail.entity';
-
-interface HealthStatus {
-  status: 'healthy' | 'unhealthy' | 'degraded';
-  timestamp: string;
-  [key: string]: unknown;
-}
+import {
+  HealthAggregateResponseDto,
+  HealthLivenessResponseDto,
+  HealthReadinessResponseDto,
+  HealthRedisResponseDto,
+} from './dto/health-response.dto';
 
 /**
- * Health endpoints — SW-BE-025
+ * Health endpoints — SW-BE-025 / SW-BE-028
  *
  * GET /health/live    — liveness probe (process is up)
- * GET /health/ready   — readiness probe (DB + Redis reachable)
- * GET /health/redis   — Redis-only check (backward-compat)
- * GET /health         — full aggregate check
+ * GET /health/ready   — readiness probe (DB + Redis reachable); 503 when unhealthy
+ * GET /health/redis   — Redis-only check (backward-compat); 503 when disconnected
+ * GET /health         — full aggregate check; 503 when all deps down
  */
 @ApiExcludeController()
 @SkipThrottle()
@@ -33,7 +39,7 @@ export class HealthController {
 
   /** Liveness: the process is alive and the event loop is responsive. */
   @Get('live')
-  liveness(): HealthStatus {
+  liveness(): HealthLivenessResponseDto {
     return {
       status: 'healthy',
       timestamp: new Date().toISOString(),
@@ -41,28 +47,37 @@ export class HealthController {
     };
   }
 
-  /** Readiness: all critical dependencies are reachable. */
+  /**
+   * Readiness: all critical dependencies are reachable.
+   * Returns HTTP 503 when any dependency is unavailable so that Kubernetes
+   * stops routing traffic to the pod until it recovers.
+   */
   @Get('ready')
-  async readiness(): Promise<HealthStatus> {
+  async readiness(): Promise<HealthReadinessResponseDto> {
     const [redisOk, dbOk] = await Promise.all([
       this.checkRedisOk(),
       this.checkDbOk(),
     ]);
 
-    const allOk = redisOk && dbOk;
-    return {
-      status: allOk ? 'healthy' : 'unhealthy',
+    const payload: HealthReadinessResponseDto = {
+      status: redisOk && dbOk ? 'healthy' : 'unhealthy',
       timestamp: new Date().toISOString(),
       redis: redisOk ? 'connected' : 'disconnected',
       database: dbOk ? 'connected' : 'disconnected',
     };
+
+    if (payload.status !== 'healthy') {
+      throw new HttpException(payload, HttpStatus.SERVICE_UNAVAILABLE);
+    }
+
+    return payload;
   }
 
   /** Full aggregate health check (all dependencies). */
   @Get()
   @UseInterceptors(AuditTrailInterceptor)
   @AuditLog(AuditAction.HEALTH_CHECK_ACCESSED)
-  async aggregate(): Promise<HealthStatus> {
+  async aggregate(): Promise<HealthAggregateResponseDto> {
     const [redisOk, dbOk] = await Promise.all([
       this.checkRedisOk(),
       this.checkDbOk(),
@@ -70,9 +85,10 @@ export class HealthController {
 
     const allOk = redisOk && dbOk;
     const anyOk = redisOk || dbOk;
+    const status = allOk ? 'healthy' : anyOk ? 'degraded' : 'unhealthy';
 
-    return {
-      status: allOk ? 'healthy' : anyOk ? 'degraded' : 'unhealthy',
+    const payload: HealthAggregateResponseDto = {
+      status,
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       redis: redisOk ? 'connected' : 'disconnected',
@@ -82,19 +98,34 @@ export class HealthController {
         rssMb: Math.round(process.memoryUsage().rss / 1024 / 1024),
       },
     };
+
+    // 503 only when every dependency is down; degraded still serves 200
+    // so monitoring dashboards can distinguish partial vs total failure.
+    if (status === 'unhealthy') {
+      throw new HttpException(payload, HttpStatus.SERVICE_UNAVAILABLE);
+    }
+
+    return payload;
   }
 
   /** Redis-only check — kept for backward compatibility. */
   @Get('redis')
   @UseInterceptors(AuditTrailInterceptor)
   @AuditLog(AuditAction.HEALTH_CHECK_ACCESSED)
-  async checkRedis(): Promise<HealthStatus> {
+  async checkRedis(): Promise<HealthRedisResponseDto> {
     const ok = await this.checkRedisOk();
-    return {
+
+    const payload: HealthRedisResponseDto = {
       status: ok ? 'healthy' : 'unhealthy',
       redis: ok ? 'connected' : 'disconnected',
       timestamp: new Date().toISOString(),
     };
+
+    if (!ok) {
+      throw new HttpException(payload, HttpStatus.SERVICE_UNAVAILABLE);
+    }
+
+    return payload;
   }
 
   // ── Private helpers ─────────────────────────────────────────────────────────

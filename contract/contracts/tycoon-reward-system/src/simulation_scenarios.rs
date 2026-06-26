@@ -17,6 +17,8 @@
 /// | S-08 | Double-redeem guard                     | Redeeming the same voucher twice must panic on second call   |
 /// | S-09 | Underfunded contract guard              | Redeem panics when contract TYC balance < voucher value      |
 /// | S-10 | owned_token_count lifecycle             | Count tracks mint → transfer → redeem across two players     |
+/// | S-11 | Admin migrate does not disrupt vouchers | admin_migrate called mid-season; outstanding vouchers still redeemable |
+/// | S-12 | Admin and backend minter coexist        | Both admin and backend can mint in the same session          |
 extern crate std;
 
 use crate::{TycoonRewardSystem, TycoonRewardSystemClient};
@@ -448,7 +450,7 @@ fn sim_s09_underfunded_contract_panics_on_redeem() {
     // — balance check is best-effort; the key invariant is the panic above.
 }
 
-// ── S-10: owned_token_count lifecycle ────────────────────────────────────────
+// ── S-10: owned_token_count lifecycle ─────────────────────────────────────────
 
 /// Verifies that owned_token_count stays consistent across the full lifecycle:
 /// mint → transfer (partial) → redeem (remaining) for two players.
@@ -489,4 +491,75 @@ fn sim_s10_owned_token_count_full_lifecycle() {
     let bob_expected = TIER_BRONZE as i128;
     assert_eq!(sim.tyc_balance(&alice), alice_expected);
     assert_eq!(sim.tyc_balance(&bob), bob_expected);
+}
+
+// ── S-11: Admin migrate does not disrupt outstanding vouchers ─────────────────
+
+/// `admin_migrate` (a no-op at v1) must not disturb any in-flight vouchers.
+/// Vouchers minted before the migration call must remain fully redeemable
+/// after it completes.
+#[test]
+fn sim_s11_admin_migrate_does_not_disrupt_outstanding_vouchers() {
+    let sim = Sim::new();
+
+    let player_a = Address::generate(&sim.env);
+    let player_b = Address::generate(&sim.env);
+
+    // Mint two vouchers before migrating
+    let tid_a = sim.client.mint_voucher(&sim.backend, &player_a, &TIER_GOLD);
+    let tid_b = sim.client.mint_voucher(&sim.backend, &player_b, &TIER_SILVER);
+
+    // Admin calls migrate mid-season
+    sim.client.admin_migrate();
+
+    // Vouchers minted before migrate are still intact
+    assert_eq!(sim.client.get_balance(&player_a, &tid_a), 1);
+    assert_eq!(sim.client.get_balance(&player_b, &tid_b), 1);
+
+    // Both players can redeem after the migration
+    sim.client.redeem_voucher_from(&player_a, &tid_a);
+    sim.client.redeem_voucher_from(&player_b, &tid_b);
+
+    assert_eq!(sim.tyc_balance(&player_a), TIER_GOLD as i128);
+    assert_eq!(sim.tyc_balance(&player_b), TIER_SILVER as i128);
+}
+
+// ── S-12: Admin and backend minter coexist ────────────────────────────────────
+
+/// Both the admin and the registered backend minter can issue vouchers in the
+/// same season. Redemption is independent and correct for each voucher
+/// regardless of which privileged role minted it.
+#[test]
+fn sim_s12_admin_and_backend_minter_coexist() {
+    let sim = Sim::new();
+
+    let player_via_admin = Address::generate(&sim.env);
+    let player_via_backend = Address::generate(&sim.env);
+
+    // Admin mints directly
+    let tid_admin = sim
+        .client
+        .mint_voucher(&sim.admin, &player_via_admin, &TIER_GOLD);
+
+    // Backend minter mints (already set up in Sim::new)
+    let tid_backend = sim
+        .client
+        .mint_voucher(&sim.backend, &player_via_backend, &TIER_SILVER);
+
+    // Both vouchers exist
+    assert_eq!(sim.client.get_balance(&player_via_admin, &tid_admin), 1);
+    assert_eq!(sim.client.get_balance(&player_via_backend, &tid_backend), 1);
+
+    // Each player redeems their own voucher
+    sim.client
+        .redeem_voucher_from(&player_via_admin, &tid_admin);
+    sim.client
+        .redeem_voucher_from(&player_via_backend, &tid_backend);
+
+    assert_eq!(sim.tyc_balance(&player_via_admin), TIER_GOLD as i128);
+    assert_eq!(sim.tyc_balance(&player_via_backend), TIER_SILVER as i128);
+
+    // Neither player can redeem the other's (already-burned) voucher
+    assert_eq!(sim.client.get_balance(&player_via_admin, &tid_admin), 0);
+    assert_eq!(sim.client.get_balance(&player_via_backend, &tid_backend), 0);
 }
