@@ -13,6 +13,9 @@
 /// | `transfer_updates_owned_token_count`    | count decrements on sender, increments on receiver |
 /// | `transfer_full_balance_zeroes_sender`   | sender count drops to 0 after full transfer |
 /// | `get_backend_minter_none_when_unset`    | returns None before set_backend_minter is called |
+/// | `initialize_sets_all_expected_state`    | state_version=1, paused=false after initialize |
+/// | `admin_migrate_v0_to_v1`               | admin_migrate advances state_version from 0 to 1 |
+/// | `admin_migrate_idempotent_at_v1`       | second admin_migrate at v1 is a no-op |
 extern crate std;
 
 use crate::{TycoonRewardSystem, TycoonRewardSystemClient};
@@ -206,5 +209,125 @@ fn voucher_id_starts_at_expected_offset() {
     assert!(
         first_id >= 1_000_000_000,
         "voucher IDs must start at VOUCHER_ID_START (1_000_000_000), got {first_id}"
+    );
+}
+
+// ── Initialize state coverage ─────────────────────────────────────────────────
+
+/// Verify that `initialize` sets `state_version` to 1 and that the contract
+/// starts in an unpaused state. These are implicit invariants assumed by many
+/// other tests but not pinned by a dedicated assertion.
+#[test]
+fn initialize_sets_all_expected_state() {
+    let h = H::new();
+
+    // state_version must be 1 after initialize
+    let version: u32 = h.env.as_contract(&h.contract_id, || {
+        h.env
+            .storage()
+            .persistent()
+            .get(&crate::DataKey::StateVersion)
+            .unwrap_or(0)
+    });
+    assert_eq!(version, 1, "state_version must be 1 after initialize");
+
+    // Contract must start unpaused
+    let paused: bool = h.env.as_contract(&h.contract_id, || {
+        h.env
+            .storage()
+            .persistent()
+            .get(&crate::DataKey::Paused)
+            .unwrap_or(false)
+    });
+    assert!(!paused, "contract must be unpaused after initialize");
+
+    // VoucherCount must be set to VOUCHER_ID_START (1_000_000_000)
+    let voucher_count: u128 = h.env.as_contract(&h.contract_id, || {
+        h.env
+            .storage()
+            .persistent()
+            .get(&crate::DataKey::VoucherCount)
+            .unwrap_or(0)
+    });
+    assert_eq!(
+        voucher_count, 1_000_000_000,
+        "VoucherCount must be initialized to VOUCHER_ID_START"
+    );
+}
+
+// ── admin_migrate coverage ────────────────────────────────────────────────────
+
+/// `admin_migrate` must advance state_version from 0 to 1 when the contract
+/// was bootstrapped without `initialize` (legacy deploy path).
+#[test]
+fn admin_migrate_v0_to_v1() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let tyc_id = env
+        .register_stellar_asset_contract_v2(Address::generate(&env))
+        .address();
+    let usdc_id = env
+        .register_stellar_asset_contract_v2(Address::generate(&env))
+        .address();
+
+    let contract_id = env.register(TycoonRewardSystem, ());
+    let client = TycoonRewardSystemClient::new(&env, &contract_id);
+
+    // Bootstrap minimum state without initialize so state_version defaults to 0.
+    env.as_contract(&contract_id, || {
+        env.storage()
+            .persistent()
+            .set(&crate::DataKey::Admin, &admin);
+        env.storage()
+            .persistent()
+            .set(&crate::DataKey::TycToken, &tyc_id);
+        env.storage()
+            .persistent()
+            .set(&crate::DataKey::UsdcToken, &usdc_id);
+        // StateVersion intentionally NOT set → defaults to 0
+    });
+
+    // Confirm precondition
+    let version_before: u32 = env.as_contract(&contract_id, || {
+        env.storage()
+            .persistent()
+            .get(&crate::DataKey::StateVersion)
+            .unwrap_or(0)
+    });
+    assert_eq!(version_before, 0, "precondition: version must be 0");
+
+    client.admin_migrate();
+
+    let version_after: u32 = env.as_contract(&contract_id, || {
+        env.storage()
+            .persistent()
+            .get(&crate::DataKey::StateVersion)
+            .unwrap_or(0)
+    });
+    assert_eq!(
+        version_after, 1,
+        "admin_migrate must advance version from 0 to 1"
+    );
+}
+
+/// `admin_migrate` called at v1 must be a no-op — version stays at 1.
+#[test]
+fn admin_migrate_idempotent_at_v1() {
+    let h = H::new();
+    // initialize sets version to 1; migrate must leave it at 1
+    h.client.admin_migrate();
+
+    let version: u32 = h.env.as_contract(&h.contract_id, || {
+        h.env
+            .storage()
+            .persistent()
+            .get(&crate::DataKey::StateVersion)
+            .unwrap_or(0)
+    });
+    assert_eq!(
+        version, 1,
+        "admin_migrate must not change version when already at v1"
     );
 }

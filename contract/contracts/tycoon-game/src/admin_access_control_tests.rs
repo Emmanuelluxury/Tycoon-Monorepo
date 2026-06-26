@@ -18,13 +18,15 @@
 /// | ACT-11  | Deprecated shims still work (backward-compat) |
 /// | ACT-12  | `remove_player_from_game` rejects address that is neither owner nor controller |
 /// | ACT-13  | `remove_player_from_game` accepts backend controller |
+/// | ACT-14  | `admin_mint_registration_voucher` rejects non-owner |
+/// | ACT-15  | Public entrypoints (`register_player`, view functions) require no admin |
 #[cfg(test)]
 mod tests {
     use crate::{TycoonContract, TycoonContractClient};
     use soroban_sdk::{
         testutils::{Address as _, MockAuth, MockAuthInvoke},
         token::StellarAssetClient,
-        Address, Env, IntoVal,
+        Address, Env, IntoVal, String,
     };
 
     // ── helpers ───────────────────────────────────────────────────────────────
@@ -292,5 +294,55 @@ mod tests {
         let player = Address::generate(&env);
         // Must not panic
         client.remove_player_from_game(&controller, &42, &player, &7);
+    }
+
+    // ── ACT-14: admin_mint_registration_voucher rejects non-owner ────────────
+
+    /// ACT-14: `admin_mint_registration_voucher` must panic when the caller is
+    /// not the stored owner. The cross-contract call to the reward system is
+    /// never reached — the admin guard fires first.
+    #[test]
+    #[should_panic]
+    fn act_14_mint_registration_voucher_rejects_non_owner() {
+        let env = Env::default();
+        let (contract_id, client, _owner, _, _) = setup(&env);
+
+        let attacker = Address::generate(&env);
+
+        env.mock_auths(&[MockAuth {
+            address: &attacker,
+            invoke: &MockAuthInvoke {
+                contract: &contract_id,
+                fn_name: "admin_mint_registration_voucher",
+                args: (&attacker,).into_val(&env),
+                sub_invokes: &[],
+            },
+        }]);
+
+        // Panics because attacker's auth does not satisfy require_admin (owner).
+        client.admin_mint_registration_voucher(&attacker);
+    }
+
+    // ── ACT-15: public entrypoints require no admin check ────────────────────
+
+    /// ACT-15: `register_player` is a public entrypoint — any authenticated
+    /// address can call it without being the owner.
+    #[test]
+    fn act_15_register_player_is_public() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (_, client, _, _, _) = setup(&env);
+
+        let player = Address::generate(&env);
+        // A non-owner player can register themselves — no admin check involved.
+        client.register_player(&String::from_str(&env, "any_player"), &player);
+
+        let user = client.get_user(&player);
+        assert!(user.is_some(), "ACT-15: player must be registered");
+        assert_eq!(
+            user.unwrap().address,
+            player,
+            "ACT-15: stored address must match caller"
+        );
     }
 }
