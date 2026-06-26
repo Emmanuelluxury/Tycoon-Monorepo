@@ -6,6 +6,18 @@ import {
   classifyHttpRouteGroup,
   httpStatusClass,
 } from './route-group';
+import {
+  MetricsQueryDto,
+  MetricsSortBy,
+  SortOrder,
+} from './dto/metrics-query.dto';
+import {
+  MetricsSummaryItemDto,
+  PaginatedMetricsResponseDto,
+} from './dto/metrics-summary.dto';
+
+/** Stable composite key for the in-memory request counter mirror. */
+type RequestKey = `${string}::${string}::${string}`;
 
 /** HTTP handler latency buckets (seconds) — tuned for API latency (p50–p99). */
 const HTTP_DURATION_BUCKETS = [
@@ -18,6 +30,9 @@ const POOL_EXHAUSTION_RATIO_THRESHOLD = 0.8;
 @Injectable()
 export class HttpMetricsService {
   readonly registry = new Registry();
+
+  /** In-memory mirror: label-set key → running count (for the summary API). */
+  private readonly requestCounts = new Map<RequestKey, MetricsSummaryItemDto>();
 
   private readonly requestsTotal: Counter;
   private readonly requestDuration: Histogram;
@@ -136,6 +151,15 @@ export class HttpMetricsService {
         durationSeconds,
       );
     }
+
+    // Keep the in-memory summary mirror up-to-date.
+    const key: RequestKey = `${m}::${routeGroup}::${statusClass}`;
+    const existing = this.requestCounts.get(key);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      this.requestCounts.set(key, { method: m, routeGroup, statusClass, count: 1 });
+    }
   }
 
   /** Snapshot pool stats from the underlying pg Pool and update gauges. */
@@ -177,6 +201,55 @@ export class HttpMetricsService {
       const lagNs = Number(process.hrtime.bigint() - start);
       this.eventLoopLagSeconds.set(lagNs / 1e9);
     });
+  }
+
+  /**
+   * Returns a paginated, stably-sorted snapshot of HTTP request counters
+   * accumulated since process start.  Stable sort: primary key is the
+   * requested `sortBy` field; secondary key is the natural insertion order
+   * (composite key string) so results are deterministic across equal values.
+   */
+  getRequestSummary(query: MetricsQueryDto): PaginatedMetricsResponseDto {
+    const {
+      page = 1,
+      limit = 20,
+      sortBy = MetricsSortBy.COUNT,
+      sortOrder = SortOrder.DESC,
+    } = query;
+
+    const rows = Array.from(this.requestCounts.values());
+
+    // Primary sort + stable secondary sort on the composite key.
+    const keys = Array.from(this.requestCounts.keys());
+    const indexed = rows.map((r, i) => ({ row: r, key: keys[i] }));
+
+    const dir = sortOrder === SortOrder.ASC ? 1 : -1;
+    indexed.sort((a, b) => {
+      const av = a.row[sortBy as keyof MetricsSummaryItemDto];
+      const bv = b.row[sortBy as keyof MetricsSummaryItemDto];
+      const primary =
+        typeof av === 'number' && typeof bv === 'number'
+          ? (av - bv) * dir
+          : String(av).localeCompare(String(bv)) * dir;
+      return primary !== 0 ? primary : a.key.localeCompare(b.key);
+    });
+
+    const total = indexed.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const skip = (page - 1) * limit;
+    const data = indexed.slice(skip, skip + limit).map((x) => x.row);
+
+    return {
+      data,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+    };
   }
 
   async getMetricsText(): Promise<string> {
