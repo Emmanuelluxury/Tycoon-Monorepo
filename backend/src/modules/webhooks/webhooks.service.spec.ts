@@ -21,6 +21,7 @@ const mockObservability = () => ({
   logIdempotencyHit: jest.fn(),
   logWebhookProcessed: jest.fn(),
   logWebhookProcessingFailed: jest.fn(),
+  logHttpRequest: jest.fn(),
 });
 
 const mockAudit = () => ({
@@ -90,7 +91,6 @@ describe('WebhooksService', () => {
     const secret = 'test_secret';
 
     beforeEach(() => {
-      // Set the private field directly since it's not a getter
       (service as any).webhookSecret = secret;
     });
 
@@ -108,6 +108,8 @@ describe('WebhooksService', () => {
         timestamp,
         Buffer.from(body),
         'stripe',
+        undefined,
+        'trace-1',
       );
 
       expect(result).toBe(true);
@@ -116,6 +118,7 @@ describe('WebhooksService', () => {
         true,
         expect.any(Number),
         undefined,
+        'trace-1',
       );
     });
 
@@ -123,12 +126,13 @@ describe('WebhooksService', () => {
       const timestamp = Math.floor(Date.now() / 1000).toString();
       const body = JSON.stringify({ test: 'data' });
 
-      // Invalid hex signature of wrong length returns false (no throw)
       const result = await service.verifySignature(
         'aabbcc',
         timestamp,
         Buffer.from(body),
         'stripe',
+        undefined,
+        'trace-2',
       );
 
       expect(result).toBe(false);
@@ -137,6 +141,7 @@ describe('WebhooksService', () => {
         false,
         expect.any(Number),
         'signature_length_mismatch',
+        'trace-2',
       );
     });
 
@@ -150,6 +155,8 @@ describe('WebhooksService', () => {
           oldTimestamp,
           Buffer.from(body),
           'stripe',
+          undefined,
+          'trace-3',
         ),
       ).rejects.toThrow('Webhook timestamp outside of tolerance');
 
@@ -158,6 +165,7 @@ describe('WebhooksService', () => {
         false,
         expect.any(Number),
         'timestamp_outside_tolerance',
+        'trace-3',
       );
     });
 
@@ -166,7 +174,7 @@ describe('WebhooksService', () => {
       const body = JSON.stringify({ test: 'data' });
 
       await expect(
-        service.verifySignature('', timestamp, Buffer.from(body), 'stripe'),
+        service.verifySignature('', timestamp, Buffer.from(body), 'stripe', undefined, 'trace-4'),
       ).rejects.toThrow('Missing webhook signature or timestamp');
 
       expect(observability.logSignatureVerification).toHaveBeenCalledWith(
@@ -174,6 +182,7 @@ describe('WebhooksService', () => {
         false,
         expect.any(Number),
         'missing_signature_or_timestamp',
+        'trace-4',
       );
     });
   });
@@ -185,7 +194,13 @@ describe('WebhooksService', () => {
       redisService.set.mockResolvedValue(undefined);
       repo.save.mockResolvedValue({});
 
-      const result = await service.processWebhook(payload, 'stripe');
+      const result = await service.processWebhook(
+        payload,
+        'stripe',
+        undefined,
+        undefined,
+        'trace-5',
+      );
 
       expect(result).toEqual({ received: true, processed: true });
       expect(redisService.set).toHaveBeenCalledWith(
@@ -201,12 +216,14 @@ describe('WebhooksService', () => {
         }),
       );
 
-      // Verify observability calls
-      expect(observability.logWebhookReceived).toHaveBeenCalledWith({
-        webhookId: 'evt_123',
-        eventType: 'payment.succeeded',
-        source: 'stripe',
-      });
+      expect(observability.logWebhookReceived).toHaveBeenCalledWith(
+        {
+          webhookId: 'evt_123',
+          eventType: 'payment.succeeded',
+          source: 'stripe',
+        },
+        'trace-5',
+      );
       expect(observability.logWebhookProcessed).toHaveBeenCalledWith(
         {
           webhookId: 'evt_123',
@@ -214,6 +231,7 @@ describe('WebhooksService', () => {
           source: 'stripe',
         },
         expect.any(Number),
+        'trace-5',
       );
     });
 
@@ -221,27 +239,35 @@ describe('WebhooksService', () => {
       const payload = { id: 'evt_123', type: 'test.event' };
       redisService.get.mockResolvedValue(true);
 
-      const result = await service.processWebhook(payload, 'stripe');
+      const result = await service.processWebhook(
+        payload,
+        'stripe',
+        undefined,
+        undefined,
+        'trace-6',
+      );
 
       expect(result).toEqual({ received: true, idempotent: true });
       expect(redisService.set).not.toHaveBeenCalled();
       expect(repo.save).not.toHaveBeenCalled();
 
-      // Verify observability calls
       expect(observability.logWebhookReceived).toHaveBeenCalled();
-      expect(observability.logIdempotencyHit).toHaveBeenCalledWith({
-        webhookId: 'evt_123',
-        eventType: 'test.event',
-        source: 'stripe',
-      });
+      expect(observability.logIdempotencyHit).toHaveBeenCalledWith(
+        {
+          webhookId: 'evt_123',
+          eventType: 'test.event',
+          source: 'stripe',
+        },
+        'trace-6',
+      );
     });
 
     it('should reject webhook without ID and log failure', async () => {
       const payload = { type: 'test.event' };
 
-      await expect(service.processWebhook(payload, 'stripe')).rejects.toThrow(
-        'Webhook payload missing ID for idempotency',
-      );
+      await expect(
+        service.processWebhook(payload, 'stripe', undefined, undefined, 'trace-7'),
+      ).rejects.toThrow('Webhook payload missing ID for idempotency');
 
       expect(observability.logWebhookReceived).toHaveBeenCalled();
       expect(observability.logWebhookProcessingFailed).toHaveBeenCalledWith(
@@ -251,6 +277,7 @@ describe('WebhooksService', () => {
         }),
         expect.any(Error),
         expect.any(Number),
+        'trace-7',
       );
     });
 
@@ -262,9 +289,9 @@ describe('WebhooksService', () => {
       redisService.set.mockResolvedValue(undefined);
       repo.save.mockRejectedValue(dbError);
 
-      await expect(service.processWebhook(payload, 'stripe')).rejects.toThrow(
-        dbError,
-      );
+      await expect(
+        service.processWebhook(payload, 'stripe', undefined, undefined, 'trace-8'),
+      ).rejects.toThrow(dbError);
 
       expect(observability.logWebhookProcessingFailed).toHaveBeenCalledWith(
         {
@@ -274,6 +301,7 @@ describe('WebhooksService', () => {
         },
         dbError,
         expect.any(Number),
+        'trace-8',
       );
     });
   });

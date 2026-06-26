@@ -11,6 +11,7 @@ import {
   HttpStatus,
   UnauthorizedException,
   BadRequestException,
+  UseInterceptors,
 } from '@nestjs/common';
 import { WebhooksService } from './webhooks.service';
 import { WebhooksObservabilityService } from './webhooks-observability.service';
@@ -18,8 +19,10 @@ import { WebhooksAuditService } from './webhooks-audit.service';
 import { Request } from 'express';
 import { StripeWebhookDto } from './dto/webhook.dto';
 import { PaginationDto } from '../../common/dto/pagination.dto';
+import { WebhooksObservabilityInterceptor } from './webhooks-observability.interceptor';
 
 @Controller('webhooks')
+@UseInterceptors(WebhooksObservabilityInterceptor)
 export class WebhooksController {
   constructor(
     private readonly webhooksService: WebhooksService,
@@ -32,13 +35,14 @@ export class WebhooksController {
   async handleStripeWebhook(
     @Headers('x-stripe-signature') signature: string,
     @Headers('x-stripe-timestamp') timestamp: string,
-    @Req() req: Request & { rawBody: Buffer; ip: string },
+    @Req() req: Request & { rawBody: Buffer; ip: string; webhookTraceId?: string },
     @Body() body: StripeWebhookDto,
   ) {
     try {
       const ipAddress =
         req.ip || (req.headers['x-forwarded-for'] as string) || 'unknown';
       const userAgent = req.headers['user-agent'] || 'unknown';
+      const traceId = req.webhookTraceId;
 
       const isValid = await this.webhooksService.verifySignature(
         signature,
@@ -46,6 +50,7 @@ export class WebhooksController {
         req.rawBody,
         'stripe',
         ipAddress,
+        traceId,
       );
 
       if (!isValid) {
@@ -57,6 +62,7 @@ export class WebhooksController {
         'stripe',
         ipAddress,
         userAgent,
+        traceId,
       );
     } catch (error) {
       if (error instanceof UnauthorizedException) {

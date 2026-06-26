@@ -3,6 +3,7 @@ import { WebhooksController } from './webhooks.controller';
 import { WebhooksService } from './webhooks.service';
 import { WebhooksObservabilityService } from './webhooks-observability.service';
 import { WebhooksAuditService } from './webhooks-audit.service';
+import { WebhooksObservabilityInterceptor } from './webhooks-observability.interceptor';
 import { UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { SortOrder } from '../../common/dto/pagination.dto';
 
@@ -33,6 +34,12 @@ describe('WebhooksController', () => {
             getAuditStatistics: jest.fn(),
           },
         },
+        {
+          provide: WebhooksObservabilityInterceptor,
+          useValue: {
+            intercept: jest.fn((ctx, next) => next.handle()),
+          },
+        },
       ],
     }).compile();
 
@@ -49,6 +56,7 @@ describe('WebhooksController', () => {
       rawBody: Buffer.from('test'),
       ip: '127.0.0.1',
       headers: { 'user-agent': 'jest', 'x-forwarded-for': '127.0.0.1' },
+      webhookTraceId: 'trace-controller-123',
     };
     const mockBody = { id: 'evt_123', type: 'test.event' };
 
@@ -67,8 +75,21 @@ describe('WebhooksController', () => {
       );
 
       expect(result).toEqual({ received: true, processed: true });
-      expect(service.verifySignature).toHaveBeenCalled();
-      expect(service.processWebhook).toHaveBeenCalled();
+      expect(service.verifySignature).toHaveBeenCalledWith(
+        'valid_signature',
+        '1234567890',
+        mockReq.rawBody,
+        'stripe',
+        '127.0.0.1',
+        'trace-controller-123',
+      );
+      expect(service.processWebhook).toHaveBeenCalledWith(
+        mockBody,
+        'stripe',
+        '127.0.0.1',
+        'jest',
+        'trace-controller-123',
+      );
     });
 
     it('should throw UnauthorizedException for invalid signature', async () => {

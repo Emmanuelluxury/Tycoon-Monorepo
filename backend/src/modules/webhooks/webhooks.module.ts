@@ -5,6 +5,7 @@ import { WebhooksService } from './webhooks.service';
 import { WebhooksObservabilityService } from './webhooks-observability.service';
 import { WebhooksAuditService } from './webhooks-audit.service';
 import { WebhookAuditHooksService } from './webhook-audit-hooks.service';
+import { WebhooksObservabilityInterceptor } from './webhooks-observability.interceptor';
 import { RedisModule } from '../redis/redis.module';
 import { WebhookEvent } from './entities/webhook-event.entity';
 import { WebhookAuditLog } from './entities/webhook-audit-log.entity';
@@ -24,6 +25,7 @@ import { AuditTrailModule } from '../audit-trail/audit-trail.module';
     WebhooksObservabilityService,
     WebhooksAuditService,
     WebhookAuditHooksService,
+    WebhooksObservabilityInterceptor,
   ],
   exports: [
     WebhooksService,
