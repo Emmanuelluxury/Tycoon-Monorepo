@@ -39,7 +39,7 @@ const defaultProps = {
   itemCurrency: 'USD',
 };
 
-function renderModal(props: Partial<typeof defaultProps> = {}) {
+function renderModal(props: Partial<typeof defaultProps & { onRetry?: () => void }> = {}) {
   const merged = { ...defaultProps, ...props, onClose: vi.fn(), onConfirm: vi.fn() };
   render(<PurchaseModal {...merged} />);
   return merged;
