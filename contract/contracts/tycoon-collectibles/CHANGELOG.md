@@ -64,6 +64,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 - `ACCEPTANCE_CRITERIA.md` — full acceptance criteria for SW-CT-022 covering all contract functions, error paths, events, and test coverage checklist.
+- Marked `buy_collectible` as deprecated in docs and acceptance criteria; retained ABI compatibility pending migration to `buy_collectible_from_shop` and `mint_collectible`.
 - `README.md` rewritten to document the complete contract interface: lifecycle, shop administration, purchasing (with CEI notes), perk mechanics, backend minting, metadata, enumeration, error reference, event reference, and storage layout.
 - `CHANGELOG.md` updated with this entry.
 - Tests: `test_initialize_already_initialized` — verifies double-init returns `AlreadyInitialized`.
