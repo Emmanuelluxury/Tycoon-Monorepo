@@ -6,11 +6,15 @@ import {
   HttpStatus,
   UnauthorizedException,
   Logger,
+  UseGuards,
+  Param,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AdminLoginDto } from './dto/admin-login.dto';
 import { Throttle } from '@nestjs/throttler';
-
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { AdminGuard } from './guards/admin.guard';
 import { AdminLogsService } from '../admin-logs/admin-logs.service';
 import { AuthAuditService } from './audit/auth-audit.service';
 import * as express from 'express';
@@ -81,5 +85,39 @@ export class AdminAuthController {
       ipAddress,
       userAgent,
     );
+  }
+
+  /**
+   * SW-BE-006: Force-logout a specific user by revoking all their refresh tokens.
+   * Preferred over the break-glass DB approach documented in the runbook because
+   * the action is recorded in admin_logs.
+   *
+   * POST /admin/users/:id/revoke-tokens
+   */
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @Post('users/:id/revoke-tokens')
+  @HttpCode(HttpStatus.OK)
+  async revokeUserTokens(
+    @Param('id', ParseIntPipe) targetUserId: number,
+    @Req() req: express.Request & { user: { id: number } },
+  ): Promise<{ message: string; revokedUserId: number }> {
+    const ipAddress = req.ip;
+    const userAgent = req.headers?.['user-agent'];
+
+    await this.authService.logout(targetUserId, ipAddress, userAgent);
+
+    await this.adminLogsService.createLog(
+      req.user.id,
+      'ADMIN_FORCE_LOGOUT',
+      targetUserId,
+      { targetUserId },
+      req,
+    );
+
+    this.logger.warn(
+      `Admin ${req.user.id} force-revoked all sessions for user ${targetUserId}`,
+    );
+
+    return { message: 'All sessions revoked', revokedUserId: targetUserId };
   }
 }
