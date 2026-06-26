@@ -7,6 +7,8 @@ import { RouteFocusProvider } from "../route-focus-provider";
 import { I18nProvider } from "../i18n-provider";
 import { AnalyticsProvider } from "../analytics-provider";
 import { MSWProvider } from "../msw-provider";
+import { NearWalletContext } from "../near-wallet-provider";
+import { ToastProvider } from "../toast-provider";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
@@ -21,6 +23,12 @@ vi.mock("@/lib/analytics", () => ({
   track: vi.fn(),
   registerAnalyticsDebugHandle: vi.fn(),
   getViewEventForPath: vi.fn(() => null),
+}));
+
+vi.mock("react-toastify", () => ({
+  ToastContainer: ({ theme }: { theme: string }) => (
+    <div data-testid="toast-container" data-theme={theme} />
+  ),
 }));
 
 vi.mock("@/lib/api", () => ({
@@ -393,6 +401,10 @@ describe("I18nProvider", () => {
 
 describe("performance budget: null-render providers produce no DOM", () => {
   it("AnalyticsProvider renders no DOM nodes", () => {
+// ── AnalyticsProvider ──────────────────────────────────────────────────────────
+
+describe("AnalyticsProvider", () => {
+  it("renders null (no DOM output)", () => {
     const { container } = render(<AnalyticsProvider />);
     expect(container.firstChild).toBeNull();
   });
@@ -413,5 +425,115 @@ describe("performance budget: RouteFocusProvider wrapper has no intrinsic size",
   it("wrapper has tabIndex -1 so it is not in tab order (avoids scroll jump)", () => {
     render(<RouteFocusProvider><span /></RouteFocusProvider>);
     expect(screen.getByTestId("route-focus-anchor").tabIndex).toBe(-1);
+  it("mounts without throwing", () => {
+    expect(() => render(<AnalyticsProvider />)).not.toThrow();
+  });
+});
+
+// ── MSWProvider ────────────────────────────────────────────────────────────────
+
+describe("MSWProvider", () => {
+  it("renders null (no DOM output)", () => {
+    const { container } = render(<MSWProvider />);
+    expect(container.firstChild).toBeNull();
+  });
+
+  it("mounts without throwing in non-development environment", () => {
+    expect(() => render(<MSWProvider />)).not.toThrow();
+  });
+});
+
+// ── ToastProvider ──────────────────────────────────────────────────────────────
+
+describe("ToastProvider", () => {
+  function Wrapper({ children }: { children: React.ReactNode }) {
+    return <ThemeProvider>{children}</ThemeProvider>;
+  }
+
+  it("renders a ToastContainer", () => {
+    render(<Wrapper><ToastProvider /></Wrapper>);
+    expect(screen.getByTestId("toast-container")).toBeDefined();
+  });
+
+  it("passes resolved theme to ToastContainer", () => {
+    render(<Wrapper><ToastProvider /></Wrapper>);
+    const container = screen.getByTestId("toast-container");
+    const theme = container.getAttribute("data-theme");
+    expect(["light", "dark"]).toContain(theme);
+  });
+
+  it("renders a screen-reader live region for announcements", () => {
+    render(<Wrapper><ToastProvider /></Wrapper>);
+    const liveRegion = document.getElementById("toast-announcements");
+    expect(liveRegion).not.toBeNull();
+    expect(liveRegion!.getAttribute("aria-live")).toBe("polite");
+  });
+});
+
+// ── NearWalletProvider (via context stub) ─────────────────────────────────────
+
+describe("NearWalletProvider (context stub)", () => {
+  const stubValue = {
+    ready: false,
+    initError: null,
+    networkId: "testnet" as const,
+    contractId: "tycoon.testnet",
+    accountId: null,
+    accounts: [],
+    transactions: [],
+    connect: vi.fn(),
+    disconnect: vi.fn(async () => {}),
+    callContractMethod: vi.fn(async () => {}),
+    clearTransactions: vi.fn(),
+  };
+
+  function Consumer() {
+    const ctx = React.useContext(NearWalletContext);
+    return (
+      <div>
+        <span data-testid="ready">{String(ctx?.ready ?? "no-ctx")}</span>
+        <span data-testid="accountId">{ctx?.accountId ?? "null"}</span>
+        <span data-testid="initError">{ctx?.initError ?? "null"}</span>
+      </div>
+    );
+  }
+
+  it("exposes ready=false when not yet initialised", () => {
+    render(
+      <NearWalletContext.Provider value={stubValue}>
+        <Consumer />
+      </NearWalletContext.Provider>
+    );
+    expect(screen.getByTestId("ready").textContent).toBe("false");
+  });
+
+  it("exposes accountId=null when no wallet connected (empty state)", () => {
+    render(
+      <NearWalletContext.Provider value={stubValue}>
+        <Consumer />
+      </NearWalletContext.Provider>
+    );
+    expect(screen.getByTestId("accountId").textContent).toBe("null");
+  });
+
+  it("exposes initError when wallet fails to initialise", () => {
+    render(
+      <NearWalletContext.Provider value={{ ...stubValue, initError: "Init failed" }}>
+        <Consumer />
+      </NearWalletContext.Provider>
+    );
+    expect(screen.getByTestId("initError").textContent).toBe("Init failed");
+  });
+
+  it("exposes ready=true and accountId when wallet connected", () => {
+    render(
+      <NearWalletContext.Provider
+        value={{ ...stubValue, ready: true, accountId: "alice.testnet" }}
+      >
+        <Consumer />
+      </NearWalletContext.Provider>
+    );
+    expect(screen.getByTestId("ready").textContent).toBe("true");
+    expect(screen.getByTestId("accountId").textContent).toBe("alice.testnet");
   });
 });
