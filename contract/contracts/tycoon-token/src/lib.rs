@@ -453,3 +453,7 @@ mod access_control_tests;
 mod deprecation_tests;
 #[cfg(test)]
 mod security_review_tests;
+#[cfg(test)]
+mod unit_coverage_tests;
+#[cfg(test)]
+mod simulation_scenarios;
