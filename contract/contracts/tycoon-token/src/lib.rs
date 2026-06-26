@@ -59,6 +59,7 @@ pub enum DataKey {
     Allowance(Address, Address),
     TotalSupply,
     Initialized,
+    StateVersion,
 }
 
 // ---------------------------------------------------------------------------
@@ -96,6 +97,7 @@ impl TycoonToken {
         e.storage()
             .persistent()
             .set(&DataKey::Balance(admin.clone()), &initial_supply);
+        e.storage().instance().set(&DataKey::StateVersion, &1u32);
         MintEvent {
             to: admin,
             amount: initial_supply,
@@ -137,6 +139,31 @@ impl TycoonToken {
             new_admin,
         }
         .publish(&e);
+    }
+
+    pub fn migrate(e: Env) {
+        require_admin(&e);
+
+        let current_version: u32 = e
+            .storage()
+            .instance()
+            .get(&DataKey::StateVersion)
+            .unwrap_or(0);
+
+        if current_version == 0 {
+            // Migrate from v0 (legacy) to v1
+            e.storage().instance().set(&DataKey::StateVersion, &1u32);
+        } else if current_version == 1 {
+            // Already at v1 — no-op placeholder for future migrations
+            // Future version: could upgrade v1 → v2
+        }
+    }
+
+    pub fn state_version(e: Env) -> u32 {
+        e.storage()
+            .instance()
+            .get(&DataKey::StateVersion)
+            .unwrap_or(0)
     }
 
     pub fn admin(e: Env) -> Address {
@@ -425,6 +452,8 @@ mod access_control_tests;
 mod deprecation_tests;
 #[cfg(test)]
 mod integration_coverage;
+#[cfg(test)]
+mod migration_tests;
 #[cfg(test)]
 mod security_review_tests;
 #[cfg(test)]
