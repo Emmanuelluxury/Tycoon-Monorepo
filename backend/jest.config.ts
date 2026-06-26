@@ -28,6 +28,7 @@ const config: Config = {
     '^ioredis$': '<rootDir>/../test/mocks/ioredis.mock.ts',
     '^nest-winston$': '<rootDir>/../test/mocks/nest-winston.mock.ts',
     '^winston-daily-rotate-file$': '<rootDir>/../test/mocks/winston-daily-rotate-file.mock.ts',
+    '^prom-client$': '<rootDir>/../test/mocks/prom-client.mock.ts',
   },
   coverageThreshold: {
     global: {
