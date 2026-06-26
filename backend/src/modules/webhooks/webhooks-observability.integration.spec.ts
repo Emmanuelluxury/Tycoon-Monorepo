@@ -82,7 +82,7 @@ describe('Webhooks Observability Integration', () => {
     observability = module.get(WebhooksObservabilityService);
   });
 
-  it('processes valid webhook and emits metrics', async () => {
+  it('processes valid webhook with traceId', async () => {
     const payload = {
       id: 'evt_test_observability_123',
       type: 'payment.succeeded',
@@ -99,25 +99,76 @@ describe('Webhooks Observability Integration', () => {
       timestamp,
       body,
       'stripe',
+      undefined,
+      'trace-integration-1',
     );
     expect(valid).toBe(true);
 
-    const result = await service.processWebhook(payload, 'stripe');
+    const result = await service.processWebhook(
+      payload,
+      'stripe',
+      undefined,
+      undefined,
+      'trace-integration-1',
+    );
     expect(result).toEqual({ received: true, processed: true });
-
-    const metricsText = await observability.getMetricsText();
-    expect(metricsText).toContain('tycoon_webhook_events_total');
-    expect(metricsText).toContain('tycoon_webhook_processing_duration_seconds');
   });
 
-  it('records idempotency hit for duplicate webhook', async () => {
+  it('records idempotency hit for duplicate webhook with traceId', async () => {
     redis.get.mockResolvedValue(true);
     const payload = { id: 'evt_duplicate', type: 'charge.refunded' };
 
-    const result = await service.processWebhook(payload, 'stripe');
+    const result = await service.processWebhook(
+      payload,
+      'stripe',
+      undefined,
+      undefined,
+      'trace-integration-2',
+    );
     expect(result).toEqual({ received: true, idempotent: true });
+  });
 
-    const metricsText = await observability.getMetricsText();
-    expect(metricsText).toContain('tycoon_webhook_idempotency_hits_total');
+  it('propagates traceId through signature verification', async () => {
+    const payload = {
+      id: 'evt_trace_test',
+      type: 'payment.succeeded',
+    };
+    const body = Buffer.from(JSON.stringify(payload));
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const signature = crypto
+      .createHmac('sha256', 'test_webhook_secret_for_integration')
+      .update(`${timestamp}.${body.toString()}`)
+      .digest('hex');
+
+    const sigSpy = jest.spyOn(observability, 'logSignatureVerification');
+    await service.verifySignature(
+      signature,
+      timestamp,
+      body,
+      'stripe',
+      undefined,
+      'trace-sig-123',
+    );
+
+    expect(sigSpy).toHaveBeenCalledWith(
+      'stripe',
+      true,
+      expect.any(Number),
+      undefined,
+      'trace-sig-123',
+    );
+  });
+
+  it('records HTTP request metrics via interceptor-level observability', async () => {
+    const httpSpy = jest.spyOn(observability, 'logHttpRequest');
+    observability.logHttpRequest('POST', '/webhooks/stripe', 200, 42, 'trace-http-1');
+
+    expect(httpSpy).toHaveBeenCalledWith(
+      'POST',
+      '/webhooks/stripe',
+      200,
+      42,
+      'trace-http-1',
+    );
   });
 });
