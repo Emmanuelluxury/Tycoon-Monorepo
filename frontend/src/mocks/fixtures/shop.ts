@@ -84,3 +84,27 @@ export const mockPurchase: PurchaseResponse = {
   is_gift: false,
   created_at: new Date().toISOString(),
 };
+
+// SW-FE-032: purchase-by-id fixture (mirrors GET /api/shop/purchases/:id)
+export const mockPurchaseById: PurchaseResponse = {
+  ...mockPurchase,
+  id: 42,
+  shop_item_id: 2,
+  shop_item: mockShopItems[1],
+  unit_price: '500.00',
+  total_price: '500.00',
+  original_price: '500.00',
+  final_price: '500.00',
+  status: 'completed',
+};
+
+/**
+ * SW-FE-032: Idempotency-key replay fixture — same shape as mockPurchase but
+ * with a stable created_at so the fixture is deterministic in snapshots.
+ */
+export const mockIdempotentPurchase: PurchaseResponse = {
+  ...mockPurchase,
+  id: 101,
+  transaction_id: 'idem-abc123',
+  created_at: '2024-06-01T12:00:00.000Z',
+};

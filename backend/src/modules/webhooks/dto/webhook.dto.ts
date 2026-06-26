@@ -28,7 +28,6 @@ export class BaseWebhookDto {
 }
 
 export class StripeWebhookDto extends BaseWebhookDto {
-  @Type(() => Boolean)
   @IsBoolean()
   livemode: boolean;
 

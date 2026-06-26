@@ -68,6 +68,7 @@ describe("NearWalletConnect", () => {
     ).toBeInTheDocument();
   });
 
+  // SW-FE-033: loading state now has its own data-testid "near-wallet-loading-state"
   it("shows a loading state while the wallet selector boots", () => {
     renderWithMock(
       createMockNearWalletValue({ accountId: null, ready: false }),
@@ -76,10 +77,21 @@ describe("NearWalletConnect", () => {
     expect(
       screen.getByText(/Preparing NEAR wallet support/i),
     ).toBeInTheDocument();
-    expect(screen.getByTestId("near-wallet-empty-state")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("near-wallet-loading-state"),
+    ).toBeInTheDocument();
   });
 
-  it("shows the init error state instead of the empty state", () => {
+  it("loading state has role=status and aria-live=polite", () => {
+    renderWithMock(
+      createMockNearWalletValue({ accountId: null, ready: false }),
+    );
+    const loadingEl = screen.getByTestId("near-wallet-loading-state");
+    expect(loadingEl).toHaveAttribute("role", "status");
+    expect(loadingEl).toHaveAttribute("aria-live", "polite");
+  });
+
+  it("shows the init error state instead of the empty/loading state", () => {
     renderWithMock(
       createMockNearWalletValue({
         ready: false,
@@ -88,6 +100,7 @@ describe("NearWalletConnect", () => {
     );
 
     expect(screen.getByRole("alert")).toHaveTextContent("Wallet init failed");
+    expect(screen.queryByTestId("near-wallet-loading-state")).toBeNull();
     expect(screen.queryByTestId("near-wallet-empty-state")).toBeNull();
   });
 
@@ -96,6 +109,33 @@ describe("NearWalletConnect", () => {
       createMockNearWalletValue({ initError: "Wallet init failed" }),
     );
     expect(screen.getByRole("alert")).toHaveTextContent("Wallet init failed");
+  });
+
+  it("error state has data-testid=near-wallet-error-state", () => {
+    renderWithMock(
+      createMockNearWalletValue({ initError: "Wallet init failed" }),
+    );
+    expect(screen.getByTestId("near-wallet-error-state")).toBeInTheDocument();
+  });
+
+  it("error state shows a Retry button", () => {
+    renderWithMock(
+      createMockNearWalletValue({ initError: "Wallet init failed" }),
+    );
+    expect(
+      screen.getByRole("button", { name: /retry near wallet connection/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("retry button calls connect when clicked", async () => {
+    const connect = vi.fn();
+    renderWithMock(
+      createMockNearWalletValue({ initError: "Wallet init failed", connect }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: /retry near wallet connection/i }),
+    );
+    expect(connect).toHaveBeenCalledTimes(1);
   });
 
   it("account badge has aria-label with full account id", () => {
@@ -127,6 +167,31 @@ describe("NearWalletConnect", () => {
     );
     const liveRegion = container.querySelector("[aria-atomic='true']");
     expect(liveRegion).not.toBeNull();
+  });
+
+  // SW-FE-033: connect button gets aria-describedby referencing the error banner
+  it("connect button has aria-describedby pointing at the error banner when initError is set", () => {
+    const { container } = renderWithMock(
+      createMockNearWalletValue({
+        ready: true,
+        accountId: null,
+        initError: "Wallet init failed",
+      }),
+    );
+    const connectBtn = screen.getByRole("button", { name: /connect near/i });
+    const describedById = connectBtn.getAttribute("aria-describedby");
+    expect(describedById).toBeTruthy();
+    const banner = container.querySelector(`#${describedById}`);
+    expect(banner).not.toBeNull();
+    expect(banner?.textContent).toContain("Wallet init failed");
+  });
+
+  it("connect button has no aria-describedby when there is no error", () => {
+    renderWithMock(
+      createMockNearWalletValue({ ready: true, accountId: null, initError: null }),
+    );
+    const connectBtn = screen.getByRole("button", { name: /connect near/i });
+    expect(connectBtn).not.toHaveAttribute("aria-describedby");
   });
 
   it("invokes connect when clicking Connect NEAR", async () => {
@@ -225,6 +290,28 @@ describe("NearWalletConnect", () => {
     expect(link.getAttribute("target")).toBe("_blank");
   });
 
+  // SW-FE-033: explorer link has a descriptive aria-label
+  it("explorer link aria-label mentions the hash and 'opens in new tab'", () => {
+    renderWithMock(
+      createMockNearWalletValue({
+        accountId: "a.testnet",
+        transactions: [
+          {
+            id: "1",
+            phase: "confirmed",
+            methodName: "addMessage",
+            contractId: "guest-book.testnet",
+            hash: "XYZ789",
+            explorerUrl: "https://explorer.testnet.near.org/transactions/XYZ789",
+          },
+        ],
+      }),
+    );
+    const link = screen.getByRole("link", { name: /view transaction XYZ789/i });
+    expect(link).toHaveAttribute("aria-label");
+    expect(link.getAttribute("aria-label")).toContain("opens in new tab");
+  });
+
   it("applies panel alignment classes for variant=panel", () => {
     const { container } = renderWithMock(
       createMockNearWalletValue({ accountId: null, ready: true }),
@@ -271,6 +358,19 @@ describe("NearWalletConnect", () => {
       ".min-h-\\[28px\\]:last-child",
     );
     expect(statusWrapper).not.toBeNull();
+  });
+
+  // SW-FE-033/034: focus ring classes applied to interactive elements
+  it("disconnect button has focus-ring classes", () => {
+    renderWithMock(createMockNearWalletValue({ accountId: "a.testnet" }));
+    const btn = screen.getByRole("button", { name: /disconnect near/i });
+    expect(btn.className).toContain("focus:ring-2");
+  });
+
+  it("connect button has focus-ring classes", () => {
+    renderWithMock(createMockNearWalletValue({ accountId: null, ready: true }));
+    const btn = screen.getByRole("button", { name: /connect near/i });
+    expect(btn.className).toContain("focus:ring-2");
   });
 });
 

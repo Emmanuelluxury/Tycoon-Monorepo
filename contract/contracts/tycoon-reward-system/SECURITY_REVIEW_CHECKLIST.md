@@ -20,7 +20,7 @@
 | AC-6 | `redeem_voucher_from` restricted to voucher owner (`redeemer.require_auth()`) | ✅ | |
 | AC-7 | `transfer` restricted to sender (`from.require_auth()`) | ✅ | |
 | AC-8 | No unaudited oracle or privileged pattern without review | ✅ | No oracle used; backend minter is the only privileged pattern and is admin-controlled |
-| AC-9 | `test_mint` / `test_burn` are test-only helpers | ⚠️ | These are `pub` on the live contract. They are gated by `#[contractimpl]` but callable on-chain. **Recommendation:** remove or gate behind `#[cfg(test)]` before mainnet. |
+| AC-9 | `test_mint` / `test_burn` are test-only helpers | ✅ | Gated by `#[cfg(test)]` on the `impl` block — excluded from the release WASM. |
 
 ---
 
@@ -41,9 +41,9 @@
 |---|---|---|---|
 | INT-1 | `_mint` uses `checked_add` for balance | ✅ | Panics on overflow |
 | INT-2 | `_burn` checks `current_balance < amount` before subtraction | ✅ | |
-| INT-3 | `VoucherCount` increment is unchecked (`+= 1`) | ⚠️ | Theoretical overflow at `u128::MAX` vouchers; negligible in practice but use `checked_add` for correctness |
+| INT-3 | `VoucherCount` increment uses `checked_add` | ✅ | Fixed — uses `checked_add(1).expect("VoucherCount overflow")` |
 | INT-4 | `OwnedTokenCount` decrement is guarded (`if current_count > 0`) | ✅ | |
-| INT-5 | `amount as i128` cast in `withdraw_funds` / `redeem_voucher_from` | ⚠️ | If `amount > i128::MAX` the cast silently wraps. Add explicit check: `assert!(amount <= i128::MAX as u128)` |
+| INT-5 | `amount as i128` cast in `withdraw_funds` guarded by explicit bounds check | ✅ | Fixed — panics with `"amount exceeds i128::MAX"` if `amount > i128::MAX as u128` |
 
 ---
 
@@ -116,9 +116,9 @@
 
 | ID | Severity | Description | Owner | Status |
 |---|---|---|---|---|
-| OI-1 | Medium | `test_mint` / `test_burn` are callable on-chain — remove or restrict | | 🔲 Open |
-| OI-2 | Low | `VoucherCount += 1` should use `checked_add` | | 🔲 Open |
-| OI-3 | Low | `amount as i128` cast should be bounds-checked | | 🔲 Open |
+| OI-1 | Medium | `test_mint` / `test_burn` are callable on-chain — remove or restrict | SW-CT-013 | ✅ Resolved — gated by `#[cfg(test)]` on the impl block |
+| OI-2 | Low | `VoucherCount += 1` should use `checked_add` | SW-CT-013 | ✅ Resolved — uses `checked_add(1).expect("VoucherCount overflow")` |
+| OI-3 | Low | `amount as i128` cast should be bounds-checked | SW-CT-013 | ✅ Resolved — explicit `amount > i128::MAX as u128` guard added |
 | OI-4 | Info | External audit recommended before mainnet (see `CEI_SECURITY_AUDIT.md §6`) | | 🔲 Pending budget |
 
 ---

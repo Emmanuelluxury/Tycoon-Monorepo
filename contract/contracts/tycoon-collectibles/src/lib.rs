@@ -799,9 +799,15 @@ impl TycoonCollectibles {
     }
 }
 
+/// SW-CT-024: Formal entrypoint classification (admin-only / caller-auth / dual-role / public-read).
+/// See ENTRYPOINTS.md for the prose version.
+pub mod entrypoint_summary;
+
 #[cfg(test)]
 mod coverage_tests;
 #[cfg(test)]
 mod entrypoint_auth_tests;
+#[cfg(test)]
+mod simulation_scenarios;
 #[cfg(test)]
 mod test;

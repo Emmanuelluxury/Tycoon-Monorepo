@@ -20,6 +20,8 @@ import { GiftStatus } from '../gifts/enums/gift-status.enum';
 import { RedisService } from '../redis/redis.service';
 import { secureRandomHex } from '../../common/crypto-secure-random';
 import { PaginationService, PaginatedResponse } from '../../common';
+import { ShopAuditService } from './shop-audit.service';
+import { ShopMetricsService } from './shop-metrics.service';
 
 /** @deprecated Use PaginatedResponse<ShopItem> from common instead. */
 export type PaginatedShopItems = PaginatedResponse<ShopItem>;
@@ -38,6 +40,8 @@ export class ShopService {
     private readonly dataSource: DataSource,
     private readonly redisService: RedisService,
     private readonly paginationService: PaginationService,
+    private readonly shopAuditService: ShopAuditService,
+    private readonly shopMetricsService: ShopMetricsService,
   ) {}
 
   /**

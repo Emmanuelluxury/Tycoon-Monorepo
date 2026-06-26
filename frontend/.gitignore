@@ -12,6 +12,20 @@
 
 # testing
 /coverage
+/__snapshots__/
+**/__snapshots__/
+**/*.snap
+/test-results/
+/playwright-report/
+
+# test snapshots (Vitest / Jest)
+**/__snapshots__/
+**/*.snap
+
+# Playwright
+/test-results/
+/playwright-report/
+/playwright/.cache/
 
 # next.js
 /.next/
@@ -19,6 +33,9 @@
 
 # production
 /build
+
+# Storybook build output
+/storybook-static/
 
 # misc
 .DS_Store
@@ -40,3 +57,20 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# test snapshots
+**/__snapshots__/
+**/*.snap
+
+# playwright / e2e artifacts
+/playwright-report/
+/test-results/
+/blob-report/
+
+# storybook build
+/storybook-static/
+
+# misc editor / OS
+*.swp
+*.swo
+Thumbs.db
