@@ -13,10 +13,38 @@ frontend_truth/
 **/target/
 **/coverage/
 **/*.tsbuildinfo
+**/.turbo/
+
+# Jest snapshots
+**/__snapshots__/
+**/*.snap
+
+# Build outputs
+**/build/
+**/.cache/
 
 # Generated reports
 backend/lint_results.json
 contract/deploy/wasm-size-report.md
 
+# Lock files (keep package-lock.json / pnpm-lock.yaml, exclude bun.lock)
+bun.lock
+**/bun.lock
+
+# OS / editor artifacts
+**/.DS_Store
+.vscode/
+**/*.swp
+**/*.swo
+
+# Temporary / scratch files
+*.tmp
+temp/
+tmp/
+
 # Issue tracking / scratch notes
 vrickish.md
+
+# Test databases
+**/*.sqlite
+**/*.db
