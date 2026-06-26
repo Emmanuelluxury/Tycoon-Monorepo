@@ -220,3 +220,155 @@ fn sim_07_end_of_season_clear_all_players() {
         assert_eq!(client.calculate_total_boost(p), 10000);
     }
 }
+
+// ── SIM-08 ────────────────────────────────────────────────────────────────────
+
+/// Admin grants a limited-time tournament boost; player competes during the
+/// boost window; boost expires when the tournament ends.
+#[test]
+fn sim_08_tournament_boost_lifecycle() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _) = setup(&env);
+    let player = Address::generate(&env);
+
+    let tournament_start = 1000u32;
+    let tournament_end = 2000u32;
+
+    set_ledger(&env, tournament_start);
+    // Grant a 2x multiplicative boost for the tournament window
+    client.admin_grant_boost(
+        &player,
+        &eb(1, BoostType::Multiplicative, 20000, tournament_end + 1),
+    );
+
+    // Mid-tournament: boost is active
+    set_ledger(&env, 1500);
+    assert_eq!(client.calculate_total_boost(&player), 20000);
+
+    // Right at tournament end: boost expires (expires_at_ledger == current ⇒ expired)
+    set_ledger(&env, tournament_end + 1);
+    assert_eq!(client.calculate_total_boost(&player), 10000);
+}
+
+// ── SIM-09 ────────────────────────────────────────────────────────────────────
+
+/// Player earns a permanent loyalty boost then stacks a temporary event boost
+/// on top; event expires while loyalty remains.
+#[test]
+fn sim_09_loyalty_plus_event_boost_stack() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _) = setup(&env);
+    let player = Address::generate(&env);
+
+    set_ledger(&env, 100);
+
+    // Permanent loyalty: +10% additive
+    client.admin_grant_boost(&player, &nb(1, BoostType::Additive, 1000));
+
+    // Temporary event: +25% additive (expires at 200)
+    client.admin_grant_boost(&player, &eb(2, BoostType::Additive, 2500, 200));
+
+    // During event: base * (1 + 0.10 + 0.25) = 13500
+    set_ledger(&env, 150);
+    assert_eq!(client.calculate_total_boost(&player), 13500);
+
+    // After event expires: base * (1 + 0.10) = 11000
+    set_ledger(&env, 200);
+    assert_eq!(client.calculate_total_boost(&player), 11000);
+}
+
+// ── SIM-10 ────────────────────────────────────────────────────────────────────
+
+/// Admin upgrades a player's boost mid-session: revoke old tier, grant new tier.
+#[test]
+fn sim_10_admin_upgrades_player_boost_tier() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _) = setup(&env);
+    let player = Address::generate(&env);
+
+    // Tier 1: +10%
+    client.admin_grant_boost(&player, &nb(1, BoostType::Additive, 1000));
+    assert_eq!(client.calculate_total_boost(&player), 11000);
+
+    // Admin upgrades to Tier 2: revoke old, grant 1.5x multiplicative
+    client.admin_revoke_boost(&player, &1u128);
+    client.admin_grant_boost(&player, &nb(2, BoostType::Multiplicative, 15000));
+
+    // Only Tier 2 applies
+    assert_eq!(client.calculate_total_boost(&player), 15000);
+    assert_eq!(client.get_active_boosts(&player).len(), 1);
+}
+
+// ── SIM-11 ────────────────────────────────────────────────────────────────────
+
+/// Burst scenario: player accumulates boosts rapidly, hits cap, then a batch
+/// of boosts expires allowing continued play.
+#[test]
+fn sim_11_rapid_accumulation_and_cap_relief() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _) = setup(&env);
+    let player = Address::generate(&env);
+
+    set_ledger(&env, 100);
+
+    // Fill cap with short-lived boosts (expire at 200)
+    for i in 0..MAX_BOOSTS_PER_PLAYER as u128 {
+        client.add_boost(&player, &eb(i + 1, BoostType::Additive, 500, 200));
+    }
+    assert_eq!(client.get_active_boosts(&player).len(), 10);
+
+    // All boosts active at ledger 150
+    set_ledger(&env, 150);
+    assert!(client.calculate_total_boost(&player) > 10000);
+
+    // All expire at 200; new boosts can be added via automatic pruning in add_boost
+    set_ledger(&env, 201);
+    client.add_boost(&player, &nb(100, BoostType::Multiplicative, 15000));
+    // Only the new permanent boost should be active
+    assert_eq!(client.get_active_boosts(&player).len(), 1);
+    assert_eq!(client.calculate_total_boost(&player), 15000);
+}
+
+// ── SIM-12 ────────────────────────────────────────────────────────────────────
+
+/// Override boost trumps accumulated stack; removing override reveals the
+/// underlying multiplicative + additive combination.
+#[test]
+fn sim_12_override_masks_and_reveals_stack() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _) = setup(&env);
+    let player = Address::generate(&env);
+
+    // Underlying stack: 1.2x multiplicative + +15% additive
+    client.add_boost(&player, &nb(1, BoostType::Multiplicative, 12000));
+    client.add_boost(&player, &nb(2, BoostType::Additive, 1500));
+
+    // Stack without override: 10000 * 1.2 * (1 + 0.15) = 13800
+    assert_eq!(client.calculate_total_boost(&player), 13800);
+
+    // Apply high-priority override (e.g., event bonus)
+    client.admin_grant_boost(
+        &player,
+        &Boost {
+            id: 3,
+            boost_type: BoostType::Override,
+            value: 25000,
+            priority: 100,
+            expires_at_ledger: 0,
+        },
+    );
+
+    // Override masks underlying stack
+    assert_eq!(client.calculate_total_boost(&player), 25000);
+
+    // Admin revokes override (event ends)
+    client.admin_revoke_boost(&player, &3u128);
+
+    // Underlying stack re-emerges
+    assert_eq!(client.calculate_total_boost(&player), 13800);
+}

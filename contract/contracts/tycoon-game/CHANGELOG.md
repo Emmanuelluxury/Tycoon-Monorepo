@@ -2,6 +2,43 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased] - SW-CT-011
+
+### Added
+- `deprecated_entrypoints_tests.rs` — 11 tests (DEP-01 – DEP-11) verifying the
+  deprecation path for legacy entrypoints introduced in v0.2.0:
+  - DEP-01: `migrate` shim delegates to `admin_migrate`; no-op at v1.
+  - DEP-02: `withdraw_funds` shim transfers tokens and emits `FundsWithdrawn` event
+    (previously `#[ignore]`; confirmed functional in the `#[no_std]` test context).
+  - DEP-03: `set_collectible_info` shim stores and retrieves metadata correctly.
+  - DEP-04: `set_cash_tier_value` shim stores and retrieves cash tier value.
+  - DEP-05: `set_backend_game_controller` shim updates controller; visible via `export_state`.
+  - DEP-06: `mint_registration_voucher` shim exists and delegates (compile check).
+  - DEP-07 – DEP-11: each shim still enforces admin-only access (auth not bypassed).
+
+## [Unreleased] - SW-CT-010
+
+### Added
+- `ACCEPTANCE_CRITERIA.md` — full functional and non-functional acceptance criteria
+  for the tycoon-game contract, covering lifecycle, admin-only entrypoints, public
+  entrypoints, deprecated shims, treasury invariant, test coverage checklist, and
+  rollout / migration notes.
+- `README.md` — comprehensive developer documentation covering architecture, public
+  interface, treasury model, events, storage layout, security model, build/test
+  instructions, and usage examples.
+
+## [Unreleased] - SW-CT-008
+
+### Added
+- `game_coverage_tests.rs` — 6 integration tests (GCT-01 – GCT-06) covering
+  paths not exercised by the primary `test.rs` suite or simulation scenarios:
+  - GCT-01: `withdraw_funds` event data equals withdrawn amount.
+  - GCT-02: Sequential TYC then USDC withdrawals update each balance independently.
+  - GCT-03: `remove_player_from_game` succeeds for owner when no backend controller is set.
+  - GCT-04: `export_state` reflects backend controller address after it is set.
+  - GCT-05: `migrate` advances v0 → v1; second call at v1 is a no-op.
+  - GCT-06: `remove_player_from_game` event data equals the supplied `turn_count`.
+
 ## [Unreleased] - SW-CT-007
 
 ### Added
