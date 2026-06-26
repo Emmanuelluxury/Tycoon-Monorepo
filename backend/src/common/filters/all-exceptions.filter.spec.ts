@@ -185,6 +185,46 @@ describe('AllExceptionsFilter', () => {
       expect(body.message).toBe('Required field is missing');
     });
 
+    it('maps 23514 (check violation) to 422 Unprocessable Entity', () => {
+      const host = createMockHost();
+      filter.catch(Object.assign(new Error('check violation'), { code: '23514' }), host);
+      const body = getReplyBody(mockHttpAdapterHost.httpAdapter.reply.mock.calls as unknown[][]);
+      expect(body.statusCode).toBe(HttpStatus.UNPROCESSABLE_ENTITY);
+      expect(body.message).toBe('Value violates a check constraint');
+    });
+
+    it('maps 40001 (serialization failure) to 409 Conflict', () => {
+      const host = createMockHost();
+      filter.catch(Object.assign(new Error('serialization failure'), { code: '40001' }), host);
+      const body = getReplyBody(mockHttpAdapterHost.httpAdapter.reply.mock.calls as unknown[][]);
+      expect(body.statusCode).toBe(HttpStatus.CONFLICT);
+      expect(body.message).toBe('Transaction conflict, please retry');
+    });
+
+    it('maps 40P01 (deadlock detected) to 409 Conflict', () => {
+      const host = createMockHost();
+      filter.catch(Object.assign(new Error('deadlock detected'), { code: '40P01' }), host);
+      const body = getReplyBody(mockHttpAdapterHost.httpAdapter.reply.mock.calls as unknown[][]);
+      expect(body.statusCode).toBe(HttpStatus.CONFLICT);
+      expect(body.message).toBe('Deadlock detected, please retry');
+    });
+
+    it('maps 08006 (connection failure) to 503 Service Unavailable', () => {
+      const host = createMockHost();
+      filter.catch(Object.assign(new Error('connection failure'), { code: '08006' }), host);
+      const body = getReplyBody(mockHttpAdapterHost.httpAdapter.reply.mock.calls as unknown[][]);
+      expect(body.statusCode).toBe(HttpStatus.SERVICE_UNAVAILABLE);
+      expect(body.message).toBe('Database temporarily unavailable');
+    });
+
+    it('maps 57014 (query cancelled) to 408 Request Timeout', () => {
+      const host = createMockHost();
+      filter.catch(Object.assign(new Error('query cancelled'), { code: '57014' }), host);
+      const body = getReplyBody(mockHttpAdapterHost.httpAdapter.reply.mock.calls as unknown[][]);
+      expect(body.statusCode).toBe(HttpStatus.REQUEST_TIMEOUT);
+      expect(body.message).toBe('Query cancelled due to timeout');
+    });
+
     it('returns 500 for an unrecognised DB error code', () => {
       const host = createMockHost();
       filter.catch(Object.assign(new Error('unknown db error'), { code: '99999' }), host);
