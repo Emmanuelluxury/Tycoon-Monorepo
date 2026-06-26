@@ -20,7 +20,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import type { Response } from 'express';
-import { ApiConsumes, ApiBody, ApiTags, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
+import { ApiConsumes, ApiBody, ApiTags, ApiBearerAuth, ApiResponse, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
 import { UploadsService, StoredFile } from './uploads.service';
@@ -33,6 +33,10 @@ import { UploadResponseDto, SignedUrlResponseDto } from './dto/upload-response.d
 import { UploadValidationPipe } from './pipes/upload-validation.pipe';
 import { UploadExceptionFilter } from './filters/upload-exception.filter';
 import { UploadsErrorMapperService } from './uploads-error-mapper.service';
+import { UploadsPaginationDto } from './dto/uploads-pagination.dto';
+import { AuditTrailInterceptor } from '../audit-trail/audit-trail.interceptor';
+import { AuditLog } from '../audit-trail/audit-log.decorator';
+import { AuditAction } from '../audit-trail/entities/audit-trail.entity';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB – also enforced in multer limits below
 
@@ -45,7 +49,7 @@ function buildMulterOptions() {
 
 @ApiTags('uploads')
 @Controller('uploads')
-@UseInterceptors(UploadsObservabilityInterceptor)
+@UseInterceptors(UploadsObservabilityInterceptor, AuditTrailInterceptor)
 @UseFilters(UploadExceptionFilter)
 export class UploadsController {
   constructor(
@@ -63,6 +67,7 @@ export class UploadsController {
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
+  @AuditLog(AuditAction.UPLOAD_CREATED)
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -114,6 +119,7 @@ export class UploadsController {
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(JwtAuthGuard, AdminGuard)
   @ApiBearerAuth()
+  @AuditLog(AuditAction.UPLOAD_CREATED)
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -137,6 +143,19 @@ export class UploadsController {
   ): Promise<StoredFile> {
     await this.virusScan.scan(file.buffer, file.originalname);
     return this.uploadsService.store(file.buffer, file.originalname, file.mimetype);
+  }
+
+  /**
+   * List uploads with pagination and stable sorting.
+   * GET /uploads?page=1&limit=10&sortBy=createdAt&sortOrder=DESC&search=avatar
+   */
+  @Get()
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List uploads with pagination and stable sorting (admin only)' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Paginated list of uploads' })
+  async listUploads(@Query() query: UploadsPaginationDto) {
+    return this.uploadsService.findAll(query);
   }
 
   /**

@@ -1,274 +1,140 @@
 # Soroban Contract Integration Tests
 
+> **Stellar Wave** · SW-CON-003 · SW-CON-004 · SW-CON-005
+
 ## Overview
 
-This directory contains comprehensive integration tests for the Tycoon Soroban smart contracts. These tests verify cross-contract interactions, token flows, and end-to-end game scenarios that cannot be adequately tested with unit tests alone.
+This directory contains cross-contract integration tests for the Tycoon Soroban smart contracts. The tests verify realistic end-to-end flows that cannot be adequately covered by unit tests alone.
 
-**Part of**: Stellar Wave engineering batch (SW-CONTRACT-001)
-
-## Test Structure
+## Test structure
 
 ```
 integration-tests/
-├── Cargo.toml                          # Integration test workspace
-├── README.md                           # This file
-├── ACCEPTANCE_CRITERIA.md              # Detailed acceptance criteria
-├── TEST_SCENARIOS.md                   # Test scenario documentation
-└── tests/
-    ├── cross_contract_integration.rs   # Contract initialization & setup
-    ├── token_interactions.rs           # Token transfer & approval flows
-    ├── game_flow.rs                    # Complete game lifecycle
-    └── reward_system_integration.rs    # Reward distribution & vouchers
+├── Cargo.toml
+├── README.md                        # This file
+├── ACCEPTANCE_CRITERIA.md           # Acceptance criteria per scenario
+├── TEST_SCENARIOS.md                # Detailed scenario documentation
+├── IMPLEMENTATION_SUMMARY.md        # Implementation notes
+├── PR_TEMPLATE.md                   # PR template
+├── src/                             # Library modules (compiled into test binary)
+│   ├── lib.rs                       # Module declarations
+│   ├── fixture.rs                   # Shared Fixture::new() helper
+│   ├── simulation_scenarios.rs      # SW-CON-003: end-to-end simulations
+│   ├── legacy_entrypoints.rs        # SW-CON-005: deprecation-path tests
+│   ├── game_reward_flow.rs
+│   ├── game_token_flow.rs
+│   ├── multi_player_flow.rs
+│   ├── reward_transfer_flow.rs
+│   ├── boost_admin_flow.rs
+│   ├── boost_system_integration.rs
+│   ├── security_review_checklist.rs
+│   └── token_reward_flow.rs
+└── tests/                           # Standalone integration test binaries
+    ├── cross_contract_integration.rs
+    ├── token_interactions.rs
+    ├── game_flow.rs
+    ├── reward_system_integration.rs
+    └── collectibles_integration.rs
 ```
 
-## Running Tests
+## Running the tests
 
-### Run All Integration Tests
 ```bash
+# All tests (unit + integration)
 cd contract
-cargo test --test '*' --all
+cargo test --all
+
+# Integration-tests crate only
+cargo test -p tycoon-integration-tests
+
+# Specific scenario file
+cargo test -p tycoon-integration-tests simulation_scenarios
+
+# With stdout
+cargo test --all -- --nocapture
 ```
 
-### Run Specific Test Suite
-```bash
-# Cross-contract integration tests
-cargo test --test cross_contract_integration
+## Scenarios
 
-# Token interaction tests
-cargo test --test token_interactions
+### simulation_scenarios.rs (SW-CON-003)
 
-# Game flow tests
-cargo test --test game_flow
+End-to-end flows across the full contract suite. Each scenario is isolated (`Fixture::new()` creates a fresh env).
 
-# Reward system tests
-cargo test --test reward_system_integration
-```
+| # | Name | What it verifies |
+|---|------|-----------------|
+| 1 | `voucher_transfer_then_redeem` | A → B transfer then redeem; balances exact |
+| 2 | `backend_minter_lifecycle` | set → mint → clear → mint rejected |
+| 3 | `owned_token_count_tracks_mint_transfer_redeem` | count invariant across lifecycle |
+| 4 | `game_export_state_reflects_live_config` | snapshot matches init values |
+| 5 | `reward_transfer_blocked_when_paused` | transfer rejected; succeeds after unpause |
+| 6 | `game_migrate_is_idempotent` | migrate on v1 is a no-op |
+| 7 | `sequential_voucher_ids_are_unique` | each mint returns a distinct, increasing ID |
+| 8 | `reward_fund_survives_partial_redemptions` | partial redemptions leave correct residual |
+| 9 | `multi_voucher_batch_then_bulk_redeem` | batch mint, out-of-order redeem |
+| 10 | `game_collectible_update_overwrites` | second write wins |
+| 11 | `cash_tier_independent_slots` | tiers don't bleed into each other |
+| 12 | `player_data_persists_after_game_removal` | user record survives session removal |
+| 13 | `admin_withdraw_funds_reduces_contract_balance` | withdraw amount exact (SW-CON-003) |
+| 14 | `reward_redeem_blocked_when_paused` | redeem rejected when paused (SW-CON-003) |
+| 15 | `backend_minter_replaced_old_minter_rejected` | replace atomically revokes old (SW-CON-003) |
+| 16 | `boost_grant_and_query_cross_contract` | grant boost; get_boosts reflects it (SW-CON-003) |
+| 17 | `multi_player_independent_vouchers` | three players' vouchers are independent (SW-CON-003) |
+| 18 | `admin_only_entrypoints_require_auth` | non-admin call is rejected (SW-CON-003) |
 
-### Run with Output
-```bash
-cargo test --test '*' -- --nocapture
-```
+### legacy_entrypoints.rs (SW-CON-005)
 
-### Run Single Test
-```bash
-cargo test --test game_flow test_player_registration_flow -- --exact
-```
+Deprecation-path tests for legacy entrypoints.
 
-## Test Scenarios
+| # | Name | What it verifies |
+|---|------|-----------------|
+| 1 | `legacy_redeem_voucher_always_panics` | `redeem_voucher` always panics |
+| 2 | `legacy_redeem_voucher_does_not_transfer_tokens` | no TYC moves on deprecated call |
+| 3 | `canonical_redeem_voucher_from_still_works_after_legacy_attempt` | canonical path unaffected |
+| 4 | `test_mint_entrypoint_is_unguarded_canary` | documents unguarded test helper |
+| 5 | `test_burn_entrypoint_is_unguarded_canary` | documents unguarded test helper |
+| 6 | `test_burn_insufficient_balance_still_panics` | `_burn` guard is active |
+| 7 | `test_mint_then_burn_leaves_zero_balance_no_token_movement` | no TYC moves via helpers |
+| 8 | `legacy_mint_registration_voucher_owner_succeeds` | owner can call legacy cross-contract path |
+| 9 | `legacy_mint_registration_voucher_produces_redeemable_voucher` | produced voucher is redeemable |
+| 10 | `legacy_mint_registration_voucher_non_owner_rejected` | non-owner is rejected (canary) |
+| 11 | `deprecated_call_does_not_corrupt_subsequent_canonical_flow` | no state corruption |
+| 12 | `test_mint_voucher_has_no_value_entry_redeem_panics` | documents semantic gap |
 
-### 1. Cross-Contract Integration (`cross_contract_integration.rs`)
+## Test patterns
 
-Tests the initialization and setup of all contracts working together:
+### Shared fixture
 
-- **Token Contract Setup**: Initializes TYC and USDC token contracts
-- **Game Contract Setup**: Initializes game contract with token references
-- **Collectibles Setup**: Initializes collectibles contract with shop
-- **Reward System Setup**: Initializes reward system with all dependencies
-
-**Key Assertions**:
-- Contracts initialize without errors
-- Addresses are correctly stored
-- Admin/owner roles are properly set
-- Cross-contract references are valid
-
-### 2. Token Interactions (`token_interactions.rs`)
-
-Tests token transfer, approval, and balance management:
-
-- **Token Transfers**: Game contract transfers tokens to players
-- **Allowances**: Contracts approve and spend tokens
-- **Balance Tracking**: Balances update correctly after operations
-- **Event Emission**: Transfer events contain correct data
-
-**Key Assertions**:
-- Balances match expected values
-- Events are emitted with correct parameters
-- Allowances decrease after spending
-- Unauthorized transfers fail
-
-### 3. Game Flow (`game_flow.rs`)
-
-Tests complete game lifecycle from registration to completion:
-
-- **Player Registration**: Players register and receive initial cash
-- **Game Creation**: Owner creates games with proper state
-- **Game Joining**: Players join games and state updates
-- **Game Completion**: Games complete and rewards are distributed
-- **Collectibles Purchase**: Players buy collectibles during game
-
-**Key Assertions**:
-- Player data is stored correctly
-- Game state transitions are valid
-- Cash allocations are accurate
-- Collectible ownership transfers work
-- Rewards are distributed to winners
-
-### 4. Reward System Integration (`reward_system_integration.rs`)
-
-Tests reward creation, management, and distribution:
-
-- **Voucher Creation**: Reward system creates vouchers with correct data
-- **Reward Distribution**: Tokens are transferred to players
-- **Multi-Token Support**: Both TYC and USDC are handled
-- **Authorization**: Only authorized contracts can trigger rewards
-
-**Key Assertions**:
-- Vouchers store correct amounts and tokens
-- Reward distribution is accurate
-- Token balances are updated
-- Authorization is enforced
-
-## Test Patterns and Best Practices
-
-### Environment Setup
 ```rust
-let env = Env::default();
-env.mock_all_auths();  // Mock all authentication for testing
+let f = Fixture::new();      // fresh isolated Soroban env + all contracts deployed
+f.reward.mint_voucher(…);
+f.game.register_player(…);
+f.boost_system.admin_grant_boost(…);
 ```
 
-### Contract Registration
+### Testing panics
+
 ```rust
-let contract_id = env.register(TycoonContract, ());
-let client = TycoonContractClient::new(&env, &contract_id);
+let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    f.reward.some_deprecated_fn(…);
+}));
+assert!(res.is_err(), "must panic");
 ```
 
-### Token Contract Creation
+### Checking balances
+
 ```rust
-let token_contract = env.register_stellar_asset_contract_v2(&admin);
-let token_address = token_contract.address();
-let token_client = TokenClient::new(&env, &token_address);
+f.tyc_balance(&f.reward_id)   // i128 TYC balance of any address
+f.reward.get_balance(&addr, &tid)  // voucher balance (0 or 1)
 ```
 
-### Event Verification
-```rust
-let events = env.events().all();
-assert_eq!(events.len(), 1);
-assert_eq!(events[0].topics[0], Symbol::new(&env, "transfer"));
-```
+## Security notes
 
-### Error Testing
-```rust
-#[test]
-#[should_panic(expected = "error message")]
-fn test_error_case() {
-    // Test code that should panic
-}
-```
-
-## Acceptance Criteria
-
-All tests must meet the following criteria:
-
-### Build Requirements
-- ✅ `cargo check` passes for all workspace members
-- ✅ `cargo build --target wasm32-unknown-unknown --release` succeeds
-- ✅ No compiler warnings
-
-### Test Requirements
-- ✅ All integration tests pass
-- ✅ Unit tests continue to pass
-- ✅ Tests cover happy path and error cases
-- ✅ Tests use proper Soroban testutils patterns
-
-### CI/CD Requirements
-- ✅ GitHub Actions workflow runs all tests
-- ✅ CI passes for all affected packages
-- ✅ No flaky tests
-
-### Documentation Requirements
-- ✅ Each test has clear purpose comments
-- ✅ Test helpers are documented
-- ✅ Complex scenarios are explained
-- ✅ PR references Stellar Wave issue
-
-## Security Considerations
-
-### Authorization Testing
-- Tests verify that only authorized contracts can perform sensitive operations
-- Admin/owner roles are properly enforced
-- Unauthorized calls are rejected with appropriate errors
-
-### No Unaudited Patterns
-- No privileged patterns without security review
-- No oracle integrations without documentation
-- All access control is properly tested
-
-### Best Practices
-- Follows Stellar/Soroban best practices
-- Uses safe math operations
-- Proper error handling in all paths
-- Events are emitted for all state changes
-
-## Test Data Standards
-
-### Standard Amounts
-- Initial player cash: 1,000,000 units
-- Token mint amount: 10,000,000 units
-- Collectible price: 100,000 units
-
-### Standard Addresses
-- Owner: `Address::generate(env)`
-- Players: Generated per test
-- Admins: Generated per contract
-- Contracts: Registered with `env.register()`
-
-### Standard Game Setup
-- Player count: 2-4 players
-- Game duration: 100 ledger blocks
-- Reward pool: 500,000 units
-
-## Troubleshooting
-
-### Test Failures
-
-**"Contract already initialized"**
-- Ensure `env.mock_all_auths()` is called before initialization
-- Check that setup functions aren't called twice
-
-**"Insufficient balance"**
-- Verify tokens are minted before transfers
-- Check that amounts are correct
-
-**"Unauthorized"**
-- Ensure proper authorization is set up
-- Verify admin/owner addresses are correct
-
-**"Event not found"**
-- Check that events are emitted in the contract
-- Verify event topics and data match expectations
-
-### Build Issues
-
-**WASM compilation fails**
-- Ensure `wasm32-unknown-unknown` target is installed: `rustup target add wasm32-unknown-unknown`
-- Check Rust version: `rustup update`
-- Verify dependencies are correct in Cargo.toml
-
-**Dependency conflicts**
-- Run `cargo update` to resolve versions
-- Check workspace resolver is set to "2"
-
-## Contributing
-
-When adding new integration tests:
-
-1. Create a new test file in `tests/` directory
-2. Follow existing test patterns and naming conventions
-3. Add comprehensive comments explaining test purpose
-4. Update `ACCEPTANCE_CRITERIA.md` with new criteria
-5. Update this README with new test scenarios
-6. Ensure all tests pass locally before submitting PR
-7. Reference Stellar Wave issue in PR (e.g., SW-CONTRACT-001)
-
-## Related Documentation
-
-- [Acceptance Criteria](./ACCEPTANCE_CRITERIA.md) - Detailed acceptance criteria
-- [Test Scenarios](./TEST_SCENARIOS.md) - Detailed test scenario documentation
-- [Soroban Documentation](https://soroban.stellar.org/docs)
-- [Soroban SDK Rust Docs](https://docs.rs/soroban-sdk/latest/soroban_sdk/)
+- No new privileged patterns are introduced — all tests go through `mock_all_auths()`.
+- Admin-only entrypoints (`admin_*`) are separately covered in `admin_access_control_tests.rs` inside each contract crate.
+- `test_mint` / `test_burn` are documented as unguarded canaries pending a hardening follow-up.
 
 ## References
 
-- **Stellar Wave**: SW-CONTRACT-001
-- **Task**: Improve integration-tests on Stellar Soroban contracts and tooling
-- **Scope**: Documentation and acceptance criteria
+- Stellar Wave: SW-CON-002, SW-CON-003, SW-CON-004, SW-CON-005
+- Soroban SDK: <https://docs.rs/soroban-sdk>
+- [ACCEPTANCE_CRITERIA.md](./ACCEPTANCE_CRITERIA.md)

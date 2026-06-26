@@ -5,6 +5,8 @@ import { AuthService } from './auth.service';
 import { Role } from './enums/role.enum';
 import { AdminLogsService } from '../admin-logs/admin-logs.service';
 import { AuthAuditService } from './audit/auth-audit.service';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { AdminGuard } from './guards/admin.guard';
 import { Request } from 'express';
 
 describe('AdminAuthController', () => {
@@ -16,6 +18,7 @@ describe('AdminAuthController', () => {
     authService = {
       validateAdmin: jest.fn(),
       login: jest.fn(),
+      logout: jest.fn().mockResolvedValue(undefined),
     };
 
     adminLogsService = {
@@ -155,6 +158,51 @@ describe('AdminAuthController', () => {
       await expect(
         controller.login(adminLoginDto, mockRequest),
       ).rejects.toThrow(UnauthorizedException);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // SW-BE-006: Force-logout a specific user
+  // -------------------------------------------------------------------------
+
+  describe('revokeUserTokens (SW-BE-006)', () => {
+    const adminRequest = {
+      ip: '10.0.0.1',
+      headers: { 'user-agent': 'jest-admin-agent' },
+      user: { id: 99 },
+    } as unknown as Request & { user: { id: number } };
+
+    it('revokes all sessions for the target user and returns the userId', async () => {
+      const result = await controller.revokeUserTokens(42, adminRequest);
+
+      expect(authService.logout).toHaveBeenCalledWith(
+        42,
+        '10.0.0.1',
+        'jest-admin-agent',
+      );
+      expect(result).toEqual({ message: 'All sessions revoked', revokedUserId: 42 });
+    });
+
+    it('records an ADMIN_FORCE_LOGOUT entry in admin_logs', async () => {
+      await controller.revokeUserTokens(7, adminRequest);
+
+      expect(adminLogsService.createLog).toHaveBeenCalledWith(
+        99,
+        'ADMIN_FORCE_LOGOUT',
+        7,
+        { targetUserId: 7 },
+        adminRequest,
+      );
+    });
+
+    it('is protected by JwtAuthGuard and AdminGuard', () => {
+      const guards = Reflect.getMetadata(
+        '__guards__',
+        AdminAuthController.prototype.revokeUserTokens,
+      );
+      const guardNames = (guards ?? []).map((g: { name?: string }) => g.name);
+      expect(guardNames).toContain(JwtAuthGuard.name);
+      expect(guardNames).toContain(AdminGuard.name);
     });
   });
 });

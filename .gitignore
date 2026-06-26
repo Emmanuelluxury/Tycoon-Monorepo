@@ -1,39 +1,57 @@
-node_modules
-dist
-.env
-coverage
-*.log
-.DS_Store
-frontend_truth/
-
-# Generated artifacts and caches
+# ── Dependencies ──────────────────────────────────────────────────────────────
 **/node_modules/
-**/.next/
-**/dist/
-**/target/
-**/coverage/
-**/*.tsbuildinfo
+**/.pnp
+**/.pnp.*
+**/.yarn/*
+!**/.yarn/patches
+!**/.yarn/plugins
+!**/.yarn/releases
+!**/.yarn/versions
 
-# Test snapshots
+# ── Build / compile output ────────────────────────────────────────────────────
+**/dist/
+**/build/
+**/.next/
+**/out/
+**/target/
+**/*.tsbuildinfo
+**/.turbo/
+
+# Jest snapshots
 **/__snapshots__/
 **/*.snap
 
-# Playwright / e2e artifacts
-**/playwright-report/
+# Build outputs
+**/build/
+**/.cache/
+
+# Test snapshots and reports
+**/__snapshots__/
+**/*.snap
 **/test-results/
-**/blob-report/
+**/playwright-report/
 
-# Storybook build output
-**/storybook-static/
-
-# OS / editor noise
-*.swp
-*.swo
-Thumbs.db
-
-# Generated reports
-backend/lint_results.json
+# ── Rust / WASM ───────────────────────────────────────────────────────────────
 contract/deploy/wasm-size-report.md
+
+# Lock files (keep package-lock.json / pnpm-lock.yaml, exclude bun.lock)
+bun.lock
+**/bun.lock
+
+# OS / editor artifacts
+**/.DS_Store
+.vscode/
+**/*.swp
+**/*.swo
+
+# Temporary / scratch files
+*.tmp
+temp/
+tmp/
 
 # Issue tracking / scratch notes
 vrickish.md
+
+# Test databases
+**/*.sqlite
+**/*.db
