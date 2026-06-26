@@ -1,9 +1,10 @@
 # Deprecation Plan - Tycoon Boost System
 
-**Issue**: SW-CONTRACT-BOOST-002  
+**Issues**: SW-CONTRACT-BOOST-002, SW-CT-029
 **Title**: Deprecation Path for Legacy Entrypoints  
 **Date**: April 22, 2026  
-**Status**: 🚧 In Progress  
+**Updated**: June 25, 2026 (SW-CT-029 — full test suite added)
+**Status**: ✅ Test-covered, timeline confirmed
 
 ## Overview
 
