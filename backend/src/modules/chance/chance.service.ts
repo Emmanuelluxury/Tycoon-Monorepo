@@ -4,6 +4,8 @@ import { Repository } from 'typeorm';
 import { Chance } from './entities/chance.entity';
 import { CreateChanceDto } from './dto/create-chance.dto';
 import { ChanceType } from './enums/chance-type.enum';
+import { ListChancesQueryDto } from './dto/list-chances-query.dto';
+import { PaginationService, PaginatedResponse } from '../../common';
 import { secureRandomInt } from '../../common/crypto-secure-random';
 
 @Injectable()
@@ -11,20 +13,17 @@ export class ChanceService {
   constructor(
     @InjectRepository(Chance)
     private readonly chanceRepository: Repository<Chance>,
+    private readonly paginationService: PaginationService,
   ) {}
 
-  async findAll(page?: number, limit?: number): Promise<Chance[]> {
-    const take = limit || 20;
-
-    const skip = page && page > 0 ? (page - 1) * take : 0;
-
-    return await this.chanceRepository.find({
-      order: { id: 'ASC' },
-
-      take,
-
-      skip,
-    });
+  async findAll(queryDto: ListChancesQueryDto): Promise<PaginatedResponse<Chance>> {
+    const queryBuilder = this.chanceRepository.createQueryBuilder('chance');
+    return this.paginationService.paginate(
+      queryBuilder,
+      queryDto,
+      undefined,
+      ['id', 'createdAt', 'updatedAt'],
+    );
   }
 
   async drawCard(): Promise<Chance> {
