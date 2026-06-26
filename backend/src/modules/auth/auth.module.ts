@@ -13,6 +13,7 @@ import { RefreshToken } from './entities/refresh-token.entity';
 import { User } from '../users/entities/user.entity';
 import { AdminLogsModule } from '../admin-logs/admin-logs.module';
 import { AuthAuditService } from './audit/auth-audit.service';
+import { AuthObservabilityService } from './auth-observability.service';
 
 @Module({
   imports: [
@@ -36,7 +37,7 @@ import { AuthAuditService } from './audit/auth-audit.service';
     }),
   ],
   controllers: [AuthController, AdminAuthController],
-  providers: [AuthService, JwtStrategy, LocalStrategy, AuthAuditService],
-  exports: [AuthService, JwtModule, JwtStrategy],
+  providers: [AuthService, JwtStrategy, LocalStrategy, AuthAuditService, AuthObservabilityService],
+  exports: [AuthService, JwtModule, JwtStrategy, AuthObservabilityService],
 })
 export class AuthModule {}

@@ -1,40 +1,57 @@
-node_modules
-dist
-.env
-coverage
-*.log
-.DS_Store
-frontend_truth/
-
-# Generated artifacts and caches
+# ── Dependencies ──────────────────────────────────────────────────────────────
 **/node_modules/
-**/.next/
-**/dist/
-**/target/
-**/coverage/
-**/*.tsbuildinfo
+**/.pnp
+**/.pnp.*
+**/.yarn/*
+!**/.yarn/patches
+!**/.yarn/plugins
+!**/.yarn/releases
+!**/.yarn/versions
 
-# Test snapshots
+# ── Build / compile output ────────────────────────────────────────────────────
+**/dist/
+**/build/
+**/.next/
+**/out/
+**/target/
+**/*.tsbuildinfo
+**/.turbo/
+
+# Jest snapshots
 **/__snapshots__/
 **/*.snap
 
-# Lock files (keep only one per package manager per workspace)
-# Uncomment the ones you want to exclude from reviews:
-# **/package-lock.json
-# **/pnpm-lock.yaml
-# **/bun.lock
-# **/yarn.lock
+# Build outputs
+**/build/
+**/.cache/
 
-# Generated reports
-backend/lint_results.json
+# Test snapshots and reports
+**/__snapshots__/
+**/*.snap
+**/test-results/
+**/playwright-report/
+
+# ── Rust / WASM ───────────────────────────────────────────────────────────────
 contract/deploy/wasm-size-report.md
 
-# OS / editor noise
-.DS_Store
+# Lock files (keep package-lock.json / pnpm-lock.yaml, exclude bun.lock)
+bun.lock
+**/bun.lock
+
+# OS / editor artifacts
 **/.DS_Store
-Thumbs.db
 .vscode/
-*.pem
+**/*.swp
+**/*.swo
+
+# Temporary / scratch files
+*.tmp
+temp/
+tmp/
 
 # Issue tracking / scratch notes
 vrickish.md
+
+# Test databases
+**/*.sqlite
+**/*.db

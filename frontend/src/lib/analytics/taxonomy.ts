@@ -18,10 +18,11 @@ export const analyticsEventSchema = {
   join_room_attempted: ["route", "source"],
   join_room_succeeded: ["route"],
   join_room_failed: ["route", "error_type"],
-  // NEAR wallet telemetry — SW-FE-005
+  // NEAR wallet telemetry — SW-FE-005 / SW-FE-038
   // Intentionally omits account_id, wallet_address, and tx hashes (PII / linkable).
   near_wallet_connected: ["network_id"],
   near_wallet_disconnected: ["network_id"],
+  near_wallet_init_error: ["network_id", "error_type"],
   near_tx_submitted: ["network_id", "method_name"],
   near_tx_confirmed: ["network_id", "method_name"],
   near_tx_failed: ["network_id", "method_name", "error_type"],

@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useId } from "react";
-import { AlertCircle, ExternalLink, Loader2, Wallet } from "lucide-react";
+import React from "react";
+import { AlertCircle, ExternalLink, Loader2, RefreshCw, Wallet } from "lucide-react";
 import { useNearWallet } from "@/components/providers/near-wallet-provider";
 import { cn } from "@/lib/utils";
 
@@ -241,19 +241,33 @@ export function NearWalletConnect({
       {/* SW-FE-033: role="alert" is already set; add id so buttons can
           reference it via aria-describedby when present */}
       {initError && (
+        /* SW-FE-037: error state — role=alert for immediate SR announcement,
+           retry button so users can attempt re-initialisation without a reload. */
         <div
           id={errorId}
           role="alert"
+          data-testid="near-wallet-error-state"
           className={cn(
-            "flex max-w-[240px] items-start gap-2 rounded-lg border border-red-400/30 bg-red-400/10 px-3 py-2 text-left text-[10px] font-dm-sans text-red-200",
+            "flex max-w-[240px] flex-col gap-1.5 rounded-lg border border-red-400/30 bg-red-400/10 px-3 py-2 text-left text-[10px] font-dm-sans text-red-200",
             panel ? "self-start" : "self-end",
           )}
         >
-          <AlertCircle
-            aria-hidden="true"
-            className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-300"
-          />
-          <span className="leading-relaxed">{initError}</span>
+          <div className="flex items-start gap-2">
+            <AlertCircle
+              aria-hidden="true"
+              className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-300"
+            />
+            <span className="leading-relaxed">{initError}</span>
+          </div>
+          <button
+            type="button"
+            onClick={connect}
+            className="inline-flex items-center gap-1 self-start rounded border border-red-400/30 bg-red-400/10 px-2 py-0.5 text-[10px] text-red-200 transition-colors hover:bg-red-400/20"
+            aria-label="Retry NEAR wallet connection"
+          >
+            <RefreshCw aria-hidden="true" className="h-3 w-3" />
+            Retry
+          </button>
         </div>
       )}
 
@@ -308,13 +322,15 @@ export function NearWalletConnect({
         )}
       </div>
 
+      {/* SW-FE-036: loading skeleton — explicit min-h/w pins the region so
+          surrounding layout does not shift when content loads (CLS budget). */}
       {showLoadingState && (
         <div
           data-testid="near-wallet-loading-state"
-          role="status"
-          aria-live="polite"
+          aria-busy="true"
+          aria-label="Loading NEAR wallet"
           className={cn(
-            "flex max-w-[240px] items-start gap-2 rounded-lg border border-[var(--tycoon-border)]/80 bg-[var(--tycoon-card-bg)]/70 px-3 py-2 text-left text-[10px] font-dm-sans text-[var(--tycoon-text)]/70",
+            "flex min-h-[36px] max-w-[240px] items-start gap-2 rounded-lg border border-[var(--tycoon-border)]/80 bg-[var(--tycoon-card-bg)]/70 px-3 py-2 text-left text-[10px] font-dm-sans text-[var(--tycoon-text)]/70",
             panel ? "self-start" : "self-end",
           )}
         >
@@ -328,11 +344,12 @@ export function NearWalletConnect({
         </div>
       )}
 
+      {/* SW-FE-037: empty state — distinct testid and min-h for CLS parity. */}
       {showEmptyState && (
         <div
           data-testid="near-wallet-empty-state"
           className={cn(
-            "flex max-w-[240px] items-start gap-2 rounded-lg border border-[var(--tycoon-border)]/80 bg-[var(--tycoon-card-bg)]/70 px-3 py-2 text-left text-[10px] font-dm-sans text-[var(--tycoon-text)]/70",
+            "flex min-h-[36px] max-w-[240px] items-start gap-2 rounded-lg border border-[var(--tycoon-border)]/80 bg-[var(--tycoon-card-bg)]/70 px-3 py-2 text-left text-[10px] font-dm-sans text-[var(--tycoon-text)]/70",
             panel ? "self-start" : "self-end",
           )}
         >
