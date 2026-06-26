@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { WebhooksService } from './webhooks.service';
@@ -55,7 +56,7 @@ describe('WebhooksService', () => {
         { provide: WebhooksObservabilityService, useValue: observability },
         { provide: WebhooksAuditService, useValue: auditService },
         { provide: getRepositoryToken(WebhookEvent), useValue: repo },
-        { provide: ConfigService, useValue: new ConfigService({ WEBHOOK_SECRET: 'test_secret' }) },
+        { provide: ConfigService, useValue: new ConfigService({ WEBHOOK_SECRET: 'test_secret', WEBHOOK_SIGNATURE_TOLERANCE_SECONDS: 300, WEBHOOK_IDEMPOTENCY_TTL_DAYS: 7 }) },
       ],
     }).compile();
 
@@ -355,6 +356,18 @@ describe('WebhooksService', () => {
       );
     });
   });
+
+  describe('listEvents', () => {
+    function buildQb(data: WebhookEvent[], count: number) {
+      const qb: any = {
+        orderBy: jest.fn().mockReturnThis(),
+        addOrderBy: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getManyAndCount: jest.fn().mockResolvedValue([data, count]),
+      };
+      return qb;
+    }
 
     it('should return paginated events with default params', async () => {
       const events = [{ id: 1 }, { id: 2 }] as WebhookEvent[];
