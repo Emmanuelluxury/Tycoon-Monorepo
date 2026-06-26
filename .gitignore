@@ -1,17 +1,19 @@
-node_modules
-dist
-.env
-coverage
-*.log
-.DS_Store
-frontend_truth/
-
-# Generated artifacts and caches
+# ── Dependencies ──────────────────────────────────────────────────────────────
 **/node_modules/
-**/.next/
+**/.pnp
+**/.pnp.*
+**/.yarn/*
+!**/.yarn/patches
+!**/.yarn/plugins
+!**/.yarn/releases
+!**/.yarn/versions
+
+# ── Build / compile output ────────────────────────────────────────────────────
 **/dist/
+**/build/
+**/.next/
+**/out/
 **/target/
-**/coverage/
 **/*.tsbuildinfo
 **/.turbo/
 
@@ -29,8 +31,7 @@ frontend_truth/
 **/test-results/
 **/playwright-report/
 
-# Generated reports
-backend/lint_results.json
+# ── Rust / WASM ───────────────────────────────────────────────────────────────
 contract/deploy/wasm-size-report.md
 
 # Lock files (keep package-lock.json / pnpm-lock.yaml, exclude bun.lock)
