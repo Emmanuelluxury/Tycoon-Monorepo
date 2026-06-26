@@ -7,6 +7,10 @@ vi.mock('../OnboardingTour', () => ({
   default: () => null,
 }));
 
+vi.mock('../Marketplace', () => ({
+  Marketplace: () => <div data-testid="marketplace-content">Shop content</div>,
+}));
+
 describe('GameBoard', () => {
   it('renders the game board grid', () => {
     render(<GameBoard />);
@@ -62,5 +66,33 @@ describe('GameBoard', () => {
     fireEvent.click(closeButton);
     const board = screen.getByRole('grid', { name: /game board/i });
     await waitFor(() => expect(board).toHaveFocus());
+  });
+
+  it('opens shop overlay as accessible dialog (SW-FE-041)', () => {
+    render(<GameBoard />);
+    fireEvent.keyDown(document, { key: 's' });
+    const shopDialog = screen.getByRole('dialog', { name: /shop/i });
+    expect(shopDialog).toBeInTheDocument();
+    expect(shopDialog).toHaveAttribute('aria-modal', 'true');
+    expect(screen.getByTestId('marketplace-content')).toBeInTheDocument();
+  });
+
+  it('closes shop overlay with Escape (SW-FE-041)', async () => {
+    render(<GameBoard />);
+    fireEvent.keyDown(document, { key: 's' });
+    expect(screen.getByRole('dialog', { name: /shop/i })).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /shop/i })).not.toBeInTheDocument();
+    });
+  });
+
+  it('navigates to last square with End key (SW-FE-041)', () => {
+    render(<GameBoard />);
+    const board = screen.getByRole('grid', { name: /game board/i });
+    fireEvent.focus(board);
+    fireEvent.keyDown(board, { key: 'End' });
+    const boardwalk = screen.getByRole('gridcell', { name: /Boardwalk square/i });
+    expect(boardwalk).toHaveAttribute('tabIndex', '0');
   });
 });

@@ -56,17 +56,44 @@ export class AllExceptionsFilter implements ExceptionFilter {
       const dbError = exception as unknown as Record<string, unknown>;
       if (dbError.code) {
         switch (dbError.code as string) {
-          case '23505': // Duplicate key
+          case '23505': // unique_violation — duplicate key
             httpStatus = HttpStatus.CONFLICT;
             message = 'Duplicate entry';
             break;
-          case '23503': // Foreign key violation
+          case '23503': // foreign_key_violation
             httpStatus = HttpStatus.BAD_REQUEST;
             message = 'Referenced record does not exist';
             break;
-          case '23502': // Not null violation
+          case '23502': // not_null_violation
             httpStatus = HttpStatus.BAD_REQUEST;
             message = 'Required field is missing';
+            break;
+          case '23514': // check_violation
+            httpStatus = HttpStatus.UNPROCESSABLE_ENTITY;
+            message = 'Value violates a check constraint';
+            break;
+          case '40001': // serialization_failure (retry-able)
+            httpStatus = HttpStatus.CONFLICT;
+            message = 'Transaction conflict, please retry';
+            break;
+          case '40P01': // deadlock_detected
+            httpStatus = HttpStatus.CONFLICT;
+            message = 'Deadlock detected, please retry';
+            break;
+          case '08006': // connection_failure
+          case '08001': // sqlclient_unable_to_establish_sqlconnection
+          case '08004': // sqlserver_rejected_establishment_of_sqlconnection
+            httpStatus = HttpStatus.SERVICE_UNAVAILABLE;
+            message = 'Database temporarily unavailable';
+            break;
+          case '57014': // query_canceled
+            httpStatus = HttpStatus.REQUEST_TIMEOUT;
+            message = 'Query cancelled due to timeout';
+            break;
+          case '42P01': // undefined_table
+          case '42703': // undefined_column
+            httpStatus = HttpStatus.INTERNAL_SERVER_ERROR;
+            message = 'Internal server error';
             break;
         }
       }

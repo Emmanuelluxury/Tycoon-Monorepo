@@ -4,6 +4,7 @@ import { ShopGrid } from "./ShopGrid";
 import { ShopItemData } from "./ShopItem";
 
 vi.mock("@/lib/analytics", () => ({ track: vi.fn() }));
+vi.mock("@/hooks/useShopGridWebVitals", () => ({ useShopGridWebVitals: vi.fn() }));
 
 import { track } from "@/lib/analytics";
 const mockTrack = vi.mocked(track);

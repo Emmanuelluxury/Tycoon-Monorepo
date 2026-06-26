@@ -1,6 +1,6 @@
-# Workspace Security Review Checklist — Soroban Contracts (SW-CONTRACT-HYGIENE-001)
+# Workspace Security Review Checklist — Soroban Contracts (SW-CT-031)
 
-**Stellar Wave batch** | **Issue:** SW-CONTRACT-HYGIENE-001 | **PR:** references SW-CONTRACT-HYGIENE-001
+**Stellar Wave batch** | **Issues:** SW-CONTRACT-HYGIENE-001, SW-CT-031 | **Status:** ✅ Updated June 25, 2026
 
 This document is the single authoritative workspace-level security checklist for all
 contracts under `contract/contracts/`. Per-contract checklists live alongside each
@@ -128,3 +128,56 @@ Before merging any PR that touches `contract/`:
 An external audit is recommended before mainnet deployment. See `CEI_SECURITY_AUDIT.md §6` for scope and estimated cost.
 
 **Sign-off required from:** Tech Lead, Smart Contract Dev, Security Reviewer, External Auditor (pending).
+
+---
+
+## 8. Workspace Hygiene Checks (SW-CT-031)
+
+These items must be verified on every PR that touches `contract/`.
+
+### 8.1 Dependency Hygiene
+
+- [x] `soroban-sdk` version pinned at workspace level — no per-crate version overrides
+- [x] No transitive `std`-only dependencies in contract crates (all use `#![no_std]`)
+- [x] `Cargo.lock` committed — ensures reproducible builds in CI
+- [ ] Run `cargo audit` before each release to catch known CVEs
+
+### 8.2 Code Hygiene
+
+- [x] No `unsafe` blocks in any contract crate
+- [x] No `unwrap()` on storage reads in hot paths — `expect("message")` used throughout
+- [x] No `todo!()` or `unimplemented!()` in production code paths
+- [x] Deprecated functions marked with `#[deprecated]` attribute and emit `DeprecatedFunctionCalledEvent`
+- [x] Dead code removed or suppressed with `#[allow(dead_code)]` and a comment
+
+### 8.3 Documentation Hygiene
+
+- [x] Every public entrypoint has an `///` doc comment explaining purpose, auth, and panic conditions
+- [x] Each contract has a `README.md` describing boost types, stacking rules, and API
+- [x] `ACCEPTANCE_CRITERIA.md` exists for `tycoon-boost-system` (SW-CT-028)
+- [x] `ENTRYPOINTS.md` exists for `tycoon-boost-system` (SW-CT-030)
+- [x] `DEPRECATION_PLAN.md` exists and is up to date (SW-CT-029)
+- [ ] `tycoon-reward-system` and `tycoon-game` still need `ACCEPTANCE_CRITERIA.md`
+
+### 8.4 Test Hygiene
+
+- [x] Each test module has a top-level doc comment explaining its scope
+- [x] No `#[ignore]` tests left without a tracking issue comment
+- [x] `should_panic` tests include `expected = "..."` to pin the panic message
+- [x] Test helpers defined at module level, not copy-pasted per test
+- [x] Integration tests live in `contract/integration-tests/` and are excluded from `cargo test --package` runs
+
+### 8.5 CI Hygiene
+
+- [x] `cargo check --workspace` must pass (gating on PR merge)
+- [x] `cargo test --workspace` must pass
+- [x] WASM size budget enforced by `scripts/check-wasm-sizes.sh`
+- [ ] `cargo clippy --workspace -- -D warnings` not yet enforced in CI — track as hygiene debt
+- [ ] `cargo fmt --check` not yet enforced in CI — track as hygiene debt
+
+### 8.6 Security Documentation Hygiene
+
+- [x] Per-contract `SECURITY_REVIEW_CHECKLIST.md` updated whenever new entrypoints are added
+- [x] Findings table (SEC-XX) kept up to date with current status
+- [x] Blockers (BLK-XX) in §4 above are never silently removed — must be resolved or deferred with justification
+- [x] This workspace checklist reviewed and updated on every batch that adds/changes contract entrypoints

@@ -12,15 +12,20 @@
 
 # testing
 /coverage
-/test-results
-/playwright-report
-/blob-report
-/playwright/.cache
+/__snapshots__/
 **/__snapshots__/
-.vitest-cache
+**/*.snap
+/test-results/
+/playwright-report/
 
-# storybook
-/storybook-static
+# test snapshots (Vitest / Jest)
+**/__snapshots__/
+**/*.snap
+
+# Playwright
+/test-results/
+/playwright-report/
+/playwright/.cache/
 
 # next.js
 /.next/
@@ -28,6 +33,9 @@
 
 # production
 /build
+
+# Storybook build output
+/storybook-static/
 
 # misc
 .DS_Store
@@ -50,5 +58,19 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# editor/IDE
-.eslintcache
+# test snapshots
+**/__snapshots__/
+**/*.snap
+
+# playwright / e2e artifacts
+/playwright-report/
+/test-results/
+/blob-report/
+
+# storybook build
+/storybook-static/
+
+# misc editor / OS
+*.swp
+*.swo
+Thumbs.db

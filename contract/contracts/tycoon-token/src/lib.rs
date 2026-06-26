@@ -79,8 +79,17 @@ fn require_admin(e: &Env) -> Address {
 #[contract]
 pub struct TycoonToken;
 
+// ── Initialization + Admin-only entrypoints ─────────────────────────────────
+//
+// SW-CT-006: `mint` and `set_admin` call `require_admin` before mutating
+// state, so non-admin callers are rejected by the Soroban auth framework.
+// `admin` and `total_supply` are read-only views that require no auth.
+// `initialize` is the one-time bootstrap entrypoint; it has no caller
+// restriction beyond the "not already initialized" guard.
 #[contractimpl]
 impl TycoonToken {
+    /// Bootstrap entrypoint — callable once, by anyone, before the contract
+    /// has an admin. Subsequent calls panic with `"Already initialized"`.
     pub fn initialize(e: Env, admin: Address, initial_supply: i128) {
         if e.storage().instance().has(&DataKey::Initialized) {
             panic!("Already initialized");
@@ -103,6 +112,7 @@ impl TycoonToken {
         .publish(&e);
     }
 
+    /// Admin-only. Rejects non-admin callers via `require_admin`.
     pub fn mint(e: Env, to: Address, amount: i128) {
         require_admin(&e);
 
@@ -129,6 +139,7 @@ impl TycoonToken {
         MintEvent { to, amount }.publish(&e);
     }
 
+    /// Admin-only. Rejects non-admin callers via `require_admin`.
     pub fn set_admin(e: Env, new_admin: Address) {
         let old_admin = require_admin(&e);
         e.storage().instance().set(&DataKey::Admin, &new_admin);
@@ -139,10 +150,12 @@ impl TycoonToken {
         .publish(&e);
     }
 
+    /// Read-only — no auth required.
     pub fn admin(e: Env) -> Address {
         e.storage().instance().get(&DataKey::Admin).unwrap()
     }
 
+    /// Read-only — no auth required.
     pub fn total_supply(e: Env) -> i128 {
         e.storage()
             .instance()
@@ -151,8 +164,14 @@ impl TycoonToken {
     }
 }
 
+// ── Public (SEP-41 token) entrypoints ───────────────────────────────────────
+//
+// SW-CT-006: every state-mutating function below requires the relevant
+// token holder's own `require_auth()` — there is no admin gate on these.
+// `allowance` and `balance` are read-only views that require no auth.
 #[contractimpl]
 impl TycoonToken {
+    /// Read-only — no auth required.
     pub fn allowance(e: Env, from: Address, spender: Address) -> i128 {
         let entry: Option<AllowanceValue> = e
             .storage()
@@ -170,6 +189,7 @@ impl TycoonToken {
         }
     }
 
+    /// Public — requires `from.require_auth()`.
     pub fn approve(e: Env, from: Address, spender: Address, amount: i128, expiration_ledger: u32) {
         from.require_auth();
         if amount < 0 {
@@ -191,6 +211,7 @@ impl TycoonToken {
         .publish(&e);
     }
 
+    /// Read-only — no auth required.
     pub fn balance(e: Env, id: Address) -> i128 {
         e.storage()
             .persistent()
@@ -198,6 +219,7 @@ impl TycoonToken {
             .unwrap_or(0)
     }
 
+    /// Public — requires `from.require_auth()`.
     pub fn transfer(e: Env, from: Address, to: Address, amount: i128) {
         from.require_auth();
         if amount < 0 {
@@ -232,6 +254,7 @@ impl TycoonToken {
         TransferEvent { from, to, amount }.publish(&e);
     }
 
+    /// Public — requires `spender.require_auth()`; spends from `from`'s allowance.
     pub fn transfer_from(e: Env, spender: Address, from: Address, to: Address, amount: i128) {
         spender.require_auth();
         if amount < 0 {
@@ -288,6 +311,7 @@ impl TycoonToken {
         TransferEvent { from, to, amount }.publish(&e);
     }
 
+    /// Public — requires `from.require_auth()`.
     pub fn burn(e: Env, from: Address, amount: i128) {
         from.require_auth();
         if amount <= 0 {
@@ -315,6 +339,7 @@ impl TycoonToken {
         BurnEvent { from, amount }.publish(&e);
     }
 
+    /// Public — requires `spender.require_auth()`; spends from `from`'s allowance.
     pub fn burn_from(e: Env, spender: Address, from: Address, amount: i128) {
         spender.require_auth();
         if amount <= 0 {
@@ -364,14 +389,17 @@ impl TycoonToken {
         BurnEvent { from, amount }.publish(&e);
     }
 
+    /// Read-only — no auth required.
     pub fn decimals(_e: Env) -> u32 {
         18
     }
 
+    /// Read-only — no auth required.
     pub fn name(e: Env) -> String {
         String::from_str(&e, "Tycoon")
     }
 
+    /// Read-only — no auth required.
     pub fn symbol(e: Env) -> String {
         String::from_str(&e, "TYC")
     }
@@ -425,3 +453,7 @@ mod access_control_tests;
 mod deprecation_tests;
 #[cfg(test)]
 mod security_review_tests;
+#[cfg(test)]
+mod unit_coverage_tests;
+#[cfg(test)]
+mod simulation_scenarios;
