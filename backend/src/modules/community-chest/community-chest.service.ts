@@ -1,23 +1,28 @@
 import {
   Injectable,
-  ConflictException,
-  InternalServerErrorException,
+  HttpException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CommunityChest } from './entities/community-chest.entity';
 import { CreateCommunityChestDto } from './dto/create-community-chest.dto';
+import { UpdateCommunityChestDto } from './dto/update-community-chest.dto';
 import {
   GetCommunityChestListDto,
   CommunityChestSortBy,
 } from './dto/get-community-chest-list.dto';
 import { secureRandomInt } from '../../common/crypto-secure-random';
+import {
+  CommunityChestErrorMapperService,
+  CommunityChestErrorCode,
+} from './community-chest-error-mapper.service';
 
 @Injectable()
 export class CommunityChestService {
   constructor(
     @InjectRepository(CommunityChest)
     private readonly communityChestRepository: Repository<CommunityChest>,
+    private readonly errorMapper: CommunityChestErrorMapperService,
   ) {}
 
   async drawCard(): Promise<CommunityChest | null> {
@@ -35,19 +40,18 @@ export class CommunityChestService {
   }
 
   async create(createDto: CreateCommunityChestDto): Promise<CommunityChest> {
+    const existingCard = await this.communityChestRepository.findOne({
+      where: { instruction: createDto.instruction },
+    });
+
+    if (existingCard) {
+      const mapped = this.errorMapper.mapError(
+        CommunityChestErrorCode.DUPLICATE_INSTRUCTION,
+      );
+      throw new HttpException(mapped, mapped.statusCode);
+    }
+
     try {
-      // Check for duplicate instruction
-      const existingCard = await this.communityChestRepository.findOne({
-        where: { instruction: createDto.instruction },
-      });
-
-      if (existingCard) {
-        throw new ConflictException(
-          'A Community Chest card with this instruction already exists',
-        );
-      }
-
-      // Create and save the new card
       const communityChest = this.communityChestRepository.create({
         instruction: createDto.instruction,
         type: createDto.type,
@@ -57,14 +61,47 @@ export class CommunityChestService {
       });
 
       return await this.communityChestRepository.save(communityChest);
-    } catch (error) {
-      if (error instanceof ConflictException) {
-        throw error;
-      }
-
-      throw new InternalServerErrorException(
-        'Failed to create Community Chest card',
+    } catch {
+      const mapped = this.errorMapper.mapError(
+        CommunityChestErrorCode.CREATE_FAILED,
       );
+      throw new HttpException(mapped, mapped.statusCode);
+    }
+  }
+
+  async update(
+    id: number,
+    updateDto: UpdateCommunityChestDto,
+  ): Promise<CommunityChest> {
+    const card = await this.communityChestRepository.findOne({ where: { id } });
+
+    if (!card) {
+      const mapped = this.errorMapper.mapError(
+        CommunityChestErrorCode.NOT_FOUND,
+      );
+      throw new HttpException(mapped, mapped.statusCode);
+    }
+
+    if (updateDto.instruction !== undefined) {
+      const duplicate = await this.communityChestRepository.findOne({
+        where: { instruction: updateDto.instruction },
+      });
+      if (duplicate && duplicate.id !== id) {
+        const mapped = this.errorMapper.mapError(
+          CommunityChestErrorCode.DUPLICATE_INSTRUCTION,
+        );
+        throw new HttpException(mapped, mapped.statusCode);
+      }
+    }
+
+    try {
+      Object.assign(card, updateDto);
+      return await this.communityChestRepository.save(card);
+    } catch {
+      const mapped = this.errorMapper.mapError(
+        CommunityChestErrorCode.UPDATE_FAILED,
+      );
+      throw new HttpException(mapped, mapped.statusCode);
     }
   }
 
