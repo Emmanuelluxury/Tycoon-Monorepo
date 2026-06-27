@@ -804,6 +804,7 @@ mod coverage_tests;
 #[cfg(test)]
 mod entrypoint_auth_tests;
 #[cfg(test)]
+mod errors_tests;
 mod events_tests;
 mod lib_tests;
 mod issues_1053_1056_tests;
