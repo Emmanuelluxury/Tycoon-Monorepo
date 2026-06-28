@@ -425,3 +425,4 @@ mod simulation_scenarios;
 
 #[cfg(test)]
 mod security_checklist;
+mod integration_coverage;
