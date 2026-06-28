@@ -10,6 +10,13 @@ All notable changes to this project will be documented in this file.
   `PlayerRemovedFromGame`, `ControllerUpdated`, `PlayerRegistered`,
   `OwnershipTransferred`), coverage check of all state-changing entrypoints,
   and six open items (ESA-01 – ESA-06) for future improvements.
+## [Unreleased] - #1005
+
+### Added
+- `CROSS_CONTRACT_AUTH_MATRIX.md` — exhaustive matrix of every outbound and
+  inbound cross-contract interaction for `TycoonContract`, covering caller roles,
+  auth requirements, CEI status, role rotation capability, and attack surface
+  mitigations.
 
 ## [Unreleased] - SW-CT-007
 
